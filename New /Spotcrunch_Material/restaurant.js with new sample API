@@ -1,0 +1,3567 @@
+var loopback = require('loopback');
+var AWS = require('aws-sdk');
+var AwsBuckets = require('../../server/config.json').AWSS3Buckets;
+var zomatoConfig = require('../../server/config.json').zomato;
+var zomato = require('zomato');
+var stripe = require('stripe')('sk_test_eb5QZRTBuntQSTA45gwigiX9');//client api key
+var Awsconfig = require('../../server/config.json').AWSConfig;
+var config = require('../../server/config.json');
+var path = require('path');
+var moment = require("moment");
+var crypto = require('crypto');
+var ffmpeg = require('fluent-ffmpeg');
+var _ = require('lodash');
+
+
+AWS.config.update(Awsconfig);
+
+
+module.exports = function(Restaurant) {
+
+    var speakeasy = require("speakeasy");
+    var secret = speakeasy.generateSecret({length: 20});
+
+    Restaurant.validatesUniquenessOf('mobile_no', {message: 'Mobile no is already registered'});
+    Restaurant.validatesUniquenessOf('referral_code', {message: 'Referral code not unique already registered'});
+    Restaurant.validatesUniquenessOf('email', {message: 'Email address is already taken.'});
+
+    var containerName = 'restaurant_images';
+
+    Restaurant.afterRemote('login', function(context, remoteMethodOutput, next) {
+        remoteMethodOutput.role = 'restaurant';
+        if (remoteMethodOutput.user) {
+            remoteMethodOutput.baseUrl = AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant;
+            remoteMethodOutput.thumbBaseUrl = AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant+'thumb/';
+        }
+        /* var Country = Restaurant.app.models.Country;
+         console.log(Country);
+         Country.findById(
+         1,
+         function (err, countryInstance) {
+         console.log(countryInstance)
+         });
+         */
+        next();
+    });
+
+    Restaurant.observe('before save', function (ctx, next) {
+        console.warn('setting ', ctx.data)
+        console.log('ctx.currentInstance', ctx.currentInstance)
+        if (ctx.currentInstance && !ctx.currentInstance.email && ctx.data && ctx.data.email) {
+            console.warn('setting email now send notification to admin')
+            Restaurant.sendWelcomeEmail(ctx.data);
+        } else {
+            console.log('else called')
+        }
+        next();
+    });
+
+
+    // send email to admin to notify new chef registration
+    Restaurant.sendWelcomeEmail = function(restaurantData){
+
+        Restaurant.app.models.sysadmin_config.getSysadminEmail()
+        .then(function(email) {
+
+            var myMessage = {img_base_url : config.appHostPath, restaurantData : restaurantData};
+            var renderer = loopback.template(path.resolve(__dirname, '../../common/views/email/chef-welcome.ejs'));
+            var html_body = renderer(myMessage);
+    
+            Restaurant.app.models.Email.send({
+                to: email, 
+                from: 'support@zapdish.me',
+                subject: 'New chef Registered.',
+                html: html_body
+            }, function(err, mail) {
+                if(!err){
+                    return true;
+                }else{
+                    return false
+                }
+            });
+        })
+        .catch(function(err){
+            return false;
+            console.log('error while sending email')
+        })
+       
+    };
+
+
+    Restaurant.beforeRemote('patchOrCreate',function(ctx, modelInstance, next){
+        if(typeof ctx.req.body.id !="undefined"){
+            console.log('id called')
+            delete Restaurant.validations.password;
+        }else{
+            //console.log('pass');
+        }
+        next();
+    });
+
+    Restaurant.login = function(credentials, include, fn) {
+        var self = this;
+        if (typeof include === 'function') {
+            fn = include;
+            include = undefined;
+        }
+
+        fn = fn || utils.createPromiseCallback();
+
+        include = (include || '');
+        if (Array.isArray(include)) {
+            include = include.map(function(val) {
+                return val.toLowerCase();
+            });
+        } else {
+            include = include.toLowerCase();
+        }
+
+        var realmDelimiter;
+        // Check if realm is required
+        var realmRequired = !!(self.settings.realmRequired ||
+        self.settings.realmDelimiter);
+        if (realmRequired) {
+            realmDelimiter = self.settings.realmDelimiter;
+        }
+        var query = self.normalizeCredentials(credentials, realmRequired,
+            realmDelimiter);
+
+        if (realmRequired && !query.realm) {
+            var err1 = new Error('realm is required');
+            err1.statusCode = 400;
+            err1.code = 'REALM_REQUIRED';
+            fn(err1);
+            return fn.promise;
+        }
+        if (!query.email && !query.mobile_no) {
+            var err2 = new Error('mobile_no or email is required');
+            err2.statusCode = 400;
+            err2.code = 'USERNAME_EMAIL_REQUIRED';
+            fn(err2);
+            return fn.promise;
+        }
+        console.log('query', query)
+        self.findOne({ where: query }, function(err, user) {
+            var defaultError = new Error('login failed');
+            defaultError.statusCode = 401;
+            defaultError.code = 'LOGIN_FAILED';
+
+            function tokenHandler(err, token) {
+                if (err) return fn(err);
+                if (Array.isArray(include) ? include.indexOf('user') !== -1 : include === 'user') {
+                    // NOTE(bajtos) We can't set token.user here:
+                    //  1. token.user already exists, it's a function injected by
+                    //     "AccessToken belongsTo User" relation
+                    //  2. ModelBaseClass.toJSON() ignores own properties, thus
+                    //     the value won't be included in the HTTP response
+                    // See also loopback#161 and loopback#162
+                    token.__data.user = user;
+                }
+                fn(err, token);
+            }
+
+            if (err) {
+                // debug('An error is reported from User.findOne: %j', err);
+                fn(defaultError);
+            } else if (user) {
+                user.hasPassword(credentials.password, function(err, isMatch) {
+                    if (err) {
+                        // debug('An error is reported from User.hasPassword: %j', err);
+                        fn(defaultError);
+                    } else if (isMatch) {
+                        if (self.settings.emailVerificationRequired && !user.emailVerified) {
+                            // Fail to log in if email verification is not done yet
+                            // debug('User email has not been verified');
+                            err = new Error('login failed as the email has not been verified');
+                            err.statusCode = 401;
+                            err.code = 'LOGIN_FAILED_EMAIL_NOT_VERIFIED';
+                            fn(err);
+                        } else {
+                            if (user.createAccessToken.length === 2) {
+                                user.createAccessToken(credentials.ttl, tokenHandler);
+                            } else {
+                                user.createAccessToken(credentials.ttl, credentials, tokenHandler);
+                            }
+                        }
+                    } else {
+                        //debug('The password is invalid for user %s', query.email || query.mobile_no);
+                        fn(defaultError);
+                    }
+                });
+            } else {
+                // debug('No matching record is found for user %s', query.email || query.mobile_no);
+                fn(defaultError);
+            }
+        });
+        return fn.promise;
+    };
+
+
+
+    Restaurant.normalizeCredentials = function(credentials, realmRequired, realmDelimiter) {
+        var query = {};
+        credentials = credentials || {};
+        if (!realmRequired) {
+            if (credentials.email) {
+                query.email = credentials.email;
+            } else if (credentials.mobile_no) {
+                query.mobile_no = credentials.mobile_no;
+            }
+        } else {
+            if (credentials.realm) {
+                query.realm = credentials.realm;
+            }
+            var parts;
+            if (credentials.email) {
+                parts = splitPrincipal(credentials.email, realmDelimiter);
+                query.email = parts[1];
+                if (parts[0]) {
+                    query.realm = parts[0];
+                }
+            } else if (credentials.mobile_no) {    //added mobileNo.
+                parts = splitPrincipal(credentials.mobile_no, realmDelimiter);
+                query.mobile_no = parts[1];
+                if (parts[0]) {
+                    query.realm = parts[0];
+                }
+            }
+        }
+        return query;
+    };
+
+    Restaurant.isUsernameAvailable = function(username, cb) {
+
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+        var username = username.trim();
+        Restaurant.findOne(
+            {where:{username:username, id : {neq: [currentloggedinUserId]}}},
+            function(err, response){
+
+                if(err) {
+                    cb(null, err);
+                }else{
+                    if (response == null) {
+                        cb(null, true);
+                    }else{
+                        cb(null, false);
+                    }
+
+                }
+            }
+        );
+    };
+
+    Restaurant.isEmailAvailable = function(email, cb) {
+        var email = email.trim();
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+
+        Restaurant.findOne(
+            {where:{email:email,  id : {neq: [currentloggedinUserId]}}},
+            function(err, response){
+                if(err) {
+                    cb(null, err);
+                }else{
+                    if (response == null) {
+                        cb(null, true);
+                    }else{
+                        cb(null, false);
+                    }
+
+                }
+            }
+        );
+    };
+
+    Restaurant.isHandleAvailable = function(handle, cb) {
+        var handle = handle.trim();
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+
+        Restaurant.findOne(
+            {where:{handle:handle,  id : {neq: [currentloggedinUserId]}}},
+            function(err, response){
+                if(err) {
+                    cb(null, err);
+                }else{
+                    if (response == null) {
+                        cb(null, true);
+                    }else{
+                        cb(null, false);
+                    }
+
+                }
+            }
+        );
+    };
+
+
+    Restaurant.getNearByRestaurant = function(searchRest, userLocation, currentsloggedinUserId, offset, limit){
+        return new Promise(function(resolve, reject) {
+            var cond = {
+                location : {near : userLocation, unit: 'kilometers'},
+                active : true,
+                del_list : false,
+                kyc_completed: true
+            };
+            Promise.all([
+                Restaurant.getMatchingRestaurantIds(searchRest),
+                Restaurant.app.models.sysadmin_config.getConfigValue('recommended_restaurant_search_radius')
+            ])
+            .then(function(data){
+                var ids = data[0];
+                var radius = data[1];
+                cond.location.maxDistance = radius;
+                if (ids && ids.length) {
+                    cond.id = { inq: ids}
+                }
+                Restaurant.find(
+                    {
+                        fields:[
+                            'id', 'restaurant_name', 'location', 'restaurant_image','active','del_list',
+                            'cuisines_available','overall_rating','price_for_two','country_id','open_at','close_at',
+                            'close_at2','open_at2','second_open_close','close_on_dow','time_zone_id'
+                        ],
+                        where : cond ,
+                        skip : offset,
+                        limit : limit,
+                        include : [
+                            {
+                                relation : 'followers',
+                                scope : {
+                                    where : {app_user_id : currentsloggedinUserId, status:1}
+                                }
+        
+                            },
+                            {
+                                relation : 'country',
+                            },
+                            {
+                                relation : 'timeZone',
+                            }
+                        ]
+                    },function(err, nearbyRestaurants){
+                        if(!err){
+                          resolve(nearbyRestaurants)
+                        }else{
+                            reject(err);
+                        }
+                    });
+    
+            })
+            .catch(function(err){
+                reject(err);
+            })
+            // Restaurant.app.models.sysadmin_config.getConfigValue('recommended_restaurant_search_radius')
+            // .then(function(sysConfigVal){
+            //     console.log('sysConfigVal', sysConfigVal)
+                
+            // })
+            // .catch(function(reason){
+            //     reject(reason);
+            // })
+        })
+    }
+
+    Restaurant.getMatchingRestaurantIds = function(query) {
+        return new Promise(function(resolve, reject) {
+            if(query && query.trim() && query.trim().length) {
+                var sql = "SELECT  group_concat(id) as ids  FROM `restaurant` WHERE `restaurant_name` like '%"+query+"%'";
+
+                Restaurant.dataSource.connector.execute(sql, [], function(err, newData){
+                    if(!err){
+                        var data = JSON.parse(JSON.stringify(newData));
+                        // if match found return id array else array with 0, for no match
+                        var ids = data[0].ids ?  data[0].ids.split(',').map(Number) : [0]
+                        resolve(ids)
+                    }else{
+                        reject(err)
+                    }
+                });
+            } else{
+                //no search applied 
+                resolve([]);
+            }
+        })
+    };
+
+
+    Restaurant.restaurantNearBy = function(query, user_lat, user_lng, page, limit, cb){
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+
+        if(typeof page =="undefined"){
+            page = 1;
+        }else{
+            page = page-1;
+        }
+
+        if(page < 0) {
+            page = 0;
+        }
+        var offset  = page * limit;
+        var userLocation = new loopback.GeoPoint({lat: user_lat, lng: user_lng});
+
+        Promise.all([
+            Restaurant.getNearByRestaurant(query, userLocation, currentloggedinUserId, offset, limit),
+            Restaurant.app.models.cuisine.getCuisineList()
+        ]).then(function(data) {
+            var data = JSON.parse(JSON.stringify(data));
+            response = {
+                restauants: [],
+                baseUrl : AwsBuckets.s3bucket_url+'restaurant_images/',
+                loggedInUserId : currentloggedinUserId
+            };
+            if (data[0].length) {
+                for (var i = 0; i < data[0].length; i++ ){
+                    (function(i){
+                        response.restauants[i] = JSON.parse(JSON.stringify(data[0][i]));
+                        // console.log('strting')
+                        var timeZoneOffset =  data[0][i].timeZone && data[0][i].timeZone.offset ? data[0][i].timeZone.offset : 1100;
+                        response.restauants[i].is_open = Restaurant.isOpenFn(data[0][i].open_at, data[0][i].close_at, data[0][i].open_at2, data[0][i].close_at2, data[0][i].close_on_dow, data[0][i].timeZone.offset, data[0][i].second_open_close)
+                        // console.log('ending')
+
+                        if (data[0][i].followers.length) {
+                            data[0][i].followers = undefined;
+                            response.restauants[i].following = true;
+                        } else {
+                            response.restauants[i].following = false;
+                        }
+                        response.restauants[i].cuisines = [];
+                        if (data[0][i].cuisines_available) {
+                            var cuisineIdArr = data[0][i].cuisines_available.split(',');
+                            cuisineIdArr = cuisineIdArr.map(Number)
+                            _.filter(data[1], function(c) {
+                                console.log('c.id', c.id)
+                                if(cuisineIdArr.indexOf(c.id) >= 0 ) {
+                                    response.restauants[i].cuisines.push(c.cuisine_name)
+                                } else {
+                                }
+                            })
+                        }
+                        response.restauants[i].cuisines = response.restauants[i].cuisines.join(', ');
+                    })(i);
+                    //set restaurant isOpen flag
+                }
+            }
+            console.log('done')
+            // var restaurants = data[0];
+            // var cuisinesList = data[1];
+            // data.restaurants = nearbyRestaurants;
+            //response[i].baseUrl = AwsBuckets.s3bucket_url+'restaurant_images/';
+            //response[i].loggedInUserId = currentloggedinUserId
+            cb(null, response)
+        })
+        .catch(function(err){
+            console.log('err', err)
+            cb(err);
+        })
+
+        // SysadminConfig.getConfigValue('recommended_restaurant_search_radius')
+        //     .then(function(sysConfigVal){
+        //         Restaurant.find(
+        //             {
+        //                 fields:[
+        //                     'id', 'restaurant_name', 'location', 'restaurant_image','active','del_list',
+        //                     'cuisines_available','overall_rating','price_for_two'
+        //                 ],
+        //                 where :  {
+        //                     location : {near : userLocation, maxDistance: sysConfigVal,  unit: 'kilometers'},
+        //                     active : true,
+        //                     del_list : false
+        //                 },
+        //                 skip : offset,
+        //                 limit : limit,
+        //                 include : {
+        //                     relation : 'followers',
+        //                     scope : {
+        //                         where : {app_user_id : currentsloggedinUserId, status:1}
+        //                     }
+
+        //                 }
+        //             },function(err, nearbyRestaurants){
+        //                // console.log(nearbyRestaurants[0].followers);
+        //                 if(!err){
+        //                     var data = {};
+        //                     data.restaurants = nearbyRestaurants;
+        //                     data.baseUrl = AwsBuckets.s3bucket_url+'restaurant_images/';
+        //                     data.loggedInUserId = currentloggedinUserId
+        //                     cb(null, data);
+        //                 }else{
+        //                     cb(err);
+        //                 }
+        //             });
+        //     })
+        //     .catch(function(reason){
+        //         cb(reason);
+        //     })
+    };
+
+
+    // Restaurant.afterRemote('restaurantNearBy', function(ctx, remoteInstance, next){
+
+    //     if(ctx.args.page==1){
+
+    //         var userLocation = new loopback.GeoPoint({lat: ctx.args.user_lat, lng: ctx.args.user_lng});
+    //         var userPreferenceCuisine = Restaurant.app.models.user_preference_cuisine;
+    //         userPreferenceCuisine.findOne(
+    //             {
+    //                 where : {
+    //                     app_user_id : remoteInstance.loggedInUserId
+    //                 }
+    //             },
+    //             function(err, selectedCuisineData){
+    //                 if(!err){
+    //                     console.log('data', selectedCuisineData);
+    //                     var selectedCuisinesIDS = [];
+    //                     if(selectedCuisineData.selected_cuisine_ids != '' && selectedCuisineData.selected_cuisine_ids != null){
+    //                         selectedCuisinesIDS = selectedCuisineData.selected_cuisine_ids.split(',');
+    //                         console.log('selectedCuisinesIDS', selectedCuisinesIDS)
+    //                     }else{
+    //                         console.log(' selectedCuisineData not a string ', selectedCuisineData.selected_cuisine_ids);
+    //                     }
+    //                     if(selectedCuisinesIDS.length){
+    //                         var SysadminConfig = Restaurant.app.models.sysadmin_config;
+    //                         SysadminConfig.getConfigValue('search_restaurant_in_x_radius_matching_cuisine_list')
+    //                             .then(function(config_value){
+    //                                 console.log('sysConfig.config_value', config_value)
+    //                                 Restaurant.find(
+    //                                     {
+    //                                         where :  {
+    //                                             location : {near : userLocation, maxDistance:config_value,  unit: 'kilometers'},
+    //                                             del_list : false, active: true
+    //                                         },
+    //                                         fields : ['id','location','restaurant_name','cuisines_available'],
+    //                                         include : [
+    //                                             {
+    //                                                 relation : 'followers',
+    //                                                 scope : {
+    //                                                     where : {
+    //                                                         app_user_id : remoteInstance.loggedInUserId
+    //                                                     }
+    //                                                 }
+    //                                             }
+    //                                         ]
+    //                                     },
+    //                                     function(err, restaurants){
+    //                                         if(!err){
+    //                                             if(restaurants.length){
+    //                                                 //console.log('restaurants found ', restaurants)
+    //                                                 var followRestaurantList = [];
+    //                                                 console.log('loop i started')
+    //                                                 for(var i = 0; i < selectedCuisinesIDS.length; i++){
+    //                                                     console.log('loop r started here')
+    //                                                     for(var r = 0; r < restaurants.length; r++){
+    //                                                         var availbleCuisineArr = [];
+    //                                                         var availableCuisineList = restaurants[r].cuisines_available;
+
+    //                                                             if(availableCuisineList != null && availableCuisineList != ''){
+
+    //                                                                 availbleCuisineArr = availableCuisineList.split(',');
+    //                                                                 if(availbleCuisineArr.indexOf(selectedCuisinesIDS[i]) >= 0){
+    //                                                                     if(followRestaurantList.indexOf(restaurants[r].id)== -1){
+    //                                                                         followRestaurantList.push(restaurants[r].id);
+    //                                                                         console.log('restaurants ', followRestaurantList);
+    //                                                                         //delete restaurant to minimize checking for same restaurant in next loop cycle
+    //                                                                         //delete restaurants[r]; continue;
+    //                                                                     }
+    //                                                                 }
+    //                                                             }
+
+
+    //                                                     }
+    //                                                     console.log('loop r ended here'+i)
+    //                                                 }
+    //                                                 console.log('loop i ends here');
+    //                                                 console.log('follow this Restaurant List', followRestaurantList)
+    //                                                 Restaurant.app.models.restaurant_following_user.find(
+    //                                                     {
+    //                                                         where : {
+    //                                                             app_user_id : remoteInstance.loggedInUserId,
+    //                                                             restaurant_id : { inq : followRestaurantList }
+    //                                                         }
+    //                                                     },
+    //                                                     function(err, following){
+    //                                                         if(!err){
+
+    //                                                             if(following.length == 0){
+    //                                                                 console.log('adding all followers')
+    //                                                                 Restaurant.addFollowingRestaurants(followRestaurantList, remoteInstance.loggedInUserId)
+    //                                                                 .then(function(followedRest){
+
+    //                                                                 }).catch(function(){
+
+    //                                                                 })
+
+    //                                                             }else{
+    //                                                                 //update, set status =1 for existing, and add new record for new
+    //                                                                 var remaining = Restaurant.getRestaurantToFollow(followRestaurantList, following)
+    //                                                                     .then(function(remaining){
+    //                                                                         var newFollowingArr =[]
+    //                                                                         console.log('remaining final', remaining)
+
+    //                                                                         Restaurant.addFollowingRestaurants(remaining, remoteInstance.loggedInUserId)
+    //                                                                         .then(function(followedRest){
+    //                                                                             console.log('new followed', followedRest)
+    //                                                                         }).catch(function(){
+
+    //                                                                         })
+    //                                                                     });
+    //                                                             }
+    //                                                         }else{
+    //                                                             console.log('err occurred', err);
+    //                                                         }
+    //                                                     }
+    //                                                 )
+
+    //                                             }else{
+    //                                                 console.log('empty restaurant list found');
+    //                                             }
+
+    //                                             //  console.log(restaurants);
+    //                                         }
+    //                                     }
+    //                                 )
+    //                             })
+    //                             .catch(function(reason){
+    //                                 cb(reason);
+    //                             })
+    //                     }else{
+    //                         console.log('selectedCuisinesIDS not found', selectedCuisinesIDS)
+    //                     }
+
+    //                 }
+    //             }
+    //         )
+
+    //     }
+    //     next();
+    // })
+
+
+    Restaurant.getRestaurantToFollow = function(tofollowRestIds, followedArr){
+
+            return new Promise(function(resolve, reject){
+                var remaining = tofollowRestIds;
+                var k = 0;
+                for(k = 0; k < followedArr.length; k++){
+                    (function(k){
+                        Restaurant.app.models.restaurant_following_user.upsert(
+                            {
+                                id : followedArr[k].id,
+                                app_user_id : followedArr[k].app_user_id,
+                                restaurant_id : followedArr[k].restaurant_id,
+                                status : true
+                            },
+                            function(err, data){
+                                if(!err){
+
+                                    console.log('rest list '+remaining)
+                                    console.log('item', followedArr[k]);
+                                    console.log('to remove rest id '+followedArr[k].restaurant_id)
+                                    var index = remaining.indexOf(followedArr[k].restaurant_id)
+                                    if(index != -1){
+                                        var a = remaining.splice(index, 1);
+                                        console.log('removed item, remaining ids '+ remaining);
+                                        if(k == (followedArr.length-1)){
+                                            console.log('remaining calling', k, remaining)
+                                            resolve(remaining);
+                                        }
+                                    }else{
+                                        console.log('splice nt worked', remaining);
+                                    }
+
+                                }else{
+                                    console.log('error while upsert'+err);
+                                    reject(err);
+                                }
+                            }
+                        );
+
+                        //if(k == (followedArr.length-1)){
+                        //    console.log('remaining calling', k, remaining)
+                        //    resolve(remaining);
+                        //}
+
+                    })(k);
+
+                }
+            });
+
+    }
+
+
+    Restaurant.addFollowingRestaurants = function(restaurantIds, userId){
+
+        return new Promise(function(resolve, reject){
+            var followingArr = [];
+            for(var f = 0; f < restaurantIds.length; f++){
+                followingArr.push(
+                    {
+                        app_user_id : userId,
+                        restaurant_id : restaurantIds[f],
+                        status : 1
+                    }
+                )
+            }
+            Restaurant.app.models.restaurant_following_user.create(
+                followingArr,
+                function(err, followerscreated){
+                    if(!err){
+                        resolve(followerscreated)
+                    }else{
+                        reject(err);
+                    }
+                }
+            )
+        })
+
+
+    }
+
+    Restaurant.restaurantByText = function(q, lat, lng, cb){
+
+        //active is not added in searchCond because, trial restaurant will not be searched
+        var searchCond = {del_list : false, handle :{neq :''}};
+
+        if(q != undefined) {
+            q = q.trim();
+            var searchArr = q.split(' ');
+            //console.log(' searchArr ', searchArr)
+            if (searchArr.length) {
+                var searchArr = q.split(' ');
+                searchCond.or = [];
+                for (var i = 0; i < searchArr.length; i++) {
+                    searchCond.or.push({
+                        handle: {like: '%' + searchArr[i] + '%'}
+                    })
+                }
+            }
+        }
+        console.log('searchCond ', searchCond);
+
+        Restaurant.find(
+            {
+                fields:['id','handle','locality','restaurant_name'],
+                where : searchCond
+            },function(err, data){
+                if(!err){
+                    //console.log("searchdata",data);
+                    cb(null, data);
+                }else{
+                    cb(err);
+                }
+            });
+
+    };
+    
+    Restaurant.uploadVideoAndImage =  function(fileInfo, fileName) {
+        
+        return Promise.all([
+            Restaurant.app.models.file_upload.uploadToS3(
+                containerName,
+                fileInfo
+            ),
+            Restaurant.app.models.file_upload.uploadSavedFfileToS3(
+                containerName,
+                fileName,
+                'image/png'
+            )
+        ])
+    }
+
+
+    Restaurant.updateImagesAndVideoPath = function(restaurant_id, files) {
+
+        return new Promise(function(resolve, reject) {
+
+            Restaurant.findById(
+                restaurant_id,
+                function(err, modelInstance){
+                    var oldVideo = modelInstance.chef_video;
+                    var oldVideoImage = modelInstance.chef_video_image;
+                    if(!err){
+                        modelInstance.chef_video =  files[0];
+                        modelInstance.chef_video_image = files[1]
+                        Restaurant.upsert(
+                            modelInstance,
+                            function(err, data){
+                                if(!err){
+                                   resolve({data, oldVideo, oldVideoImage})
+                                }else{
+                                    reject(err);
+                                }
+                            }
+                        )
+                    }else{
+                        reject(err);
+                    }
+
+                }
+            )
+            
+        });
+    }
+    
+
+    Restaurant.uploadVideo = function(ctx, options, cb) {
+        if(!options) options = {};
+        ctx.req.params.container = containerName;
+        Restaurant.app.models.container.upload(ctx.req,ctx.result,options,function (err,fileObj) {
+            if(err) {
+                cb(err);
+            } else {
+                var fileInfo = fileObj.files.file[0];
+                var newimageFile = (""+Math.random()).substring(2,7);
+                Restaurant.app.models.file_upload.createImageFromVideo(fileInfo.name, 'intro-'+newimageFile+'.png',containerName)
+                .then(function(imagefile){
+                    return Restaurant.uploadVideoAndImage(fileInfo, imagefile);
+                })
+                .then(function(files){
+                    return Restaurant.updateImagesAndVideoPath(fileObj.fields.restaurant_id, files);
+                })
+                .then(function({data, oldVideo, oldVideoImage}){
+
+                    var promises = []
+                   
+                    if (oldVideo) {
+                        promises.push(Restaurant.app.models.file_upload.deleteFromS3(containerName, oldVideo))
+                    }
+                   
+                    if (oldVideoImage) {
+                        promises.push(Restaurant.app.models.file_upload.deleteFromS3(containerName, oldVideoImage))
+                    }
+                    if (promises.length) {
+                        Promise.all(promises).then().catch()
+                    }
+                    cb(null, data)
+                })
+                .catch(function(err){
+                    console.log('err', err)
+                })
+            }
+        });
+    }
+
+
+    Restaurant.createImage = function(video) {
+    
+        return new Promise(function(resolve, reject) {
+            var VideoPath = path.join(__dirname, '../..', 'client/storage/'+containerName+'/');
+            ffmpeg(VideoPath+video)
+                .takeScreenshots({
+                    count: 1,
+                    filename:'into.png',
+                    timemarks: [ '6' ], // number of seconds,
+                    folder:  VideoPath+'thumbnail/'
+                    })
+                    .on('end', function(file) {
+                        console.log('screenshots were saved', file);
+                        resolve(file)
+                    })
+                    .on('error', function(err) {
+                        console.log('an error happened: ' + err.message);
+                        reject(err);
+                    })
+        })
+        
+    }
+
+
+    /**
+     * uploads restaurant image
+     */
+    Restaurant.upload = function (ctx,options,cb) {
+        if(!options) options = {};
+        ctx.req.params.container = containerName;
+        Restaurant.app.models.container.upload(ctx.req,ctx.result,options,function (err,fileObj) {
+            if(err) {
+                cb(err);
+            } else {
+                var fileInfo = fileObj.files.file[0];
+                var s3 = new AWS.S3();
+                var fs = require('fs');
+                Restaurant.app.models.file_upload.resCropImage(
+                    './client/storage/'+containerName+'/', 
+                    'thumb/',
+                    fileInfo.name,
+                    500, 500, 500, 500
+                )
+                .then(function(image) {
+                    Promise.all([
+                        Restaurant.app.models.file_upload.uploadToS3(containerName, fileInfo),
+                        Restaurant.app.models.file_upload.uploadToS3(containerName, fileInfo, 'thumb')
+                    ])
+                    .then(function(s3moveRes){
+                        Restaurant.findById(
+                            fileObj.fields.restaurant_id,
+                            function(err, modelInstance){
+                                var oldImage = modelInstance.restaurant_image;
+                                if(!err){
+                                    modelInstance.restaurant_image =  fileInfo.name;
+                                    Restaurant.upsert(
+                                        modelInstance,
+                                        function(err, data){
+                                            if(!err){
+                                                var params = {
+                                                    Bucket: AwsBuckets.bucket_name, /* required */
+                                                    Key: containerName+'/'+oldImage
+                                                };
+                                                s3.deleteObject(params, function(err, data) {
+                                                    if (err) console.log(err, err.stack); // an error occurred
+                                                    else     console.log(data);           // successful response
+                                                });
+                                                var data = {
+                                                    filename : fileInfo.name,
+                                                    baseurl : AwsBuckets.s3bucket_url+containerName+'/'
+                                                }
+                                                cb(null, data);
+                                            }else{
+                                              cb(err);
+                                            }   
+
+                                        }
+                                    )
+                                }else{
+                                    cb(err);
+                                }
+                            }
+                        )
+                    })
+                });
+               
+                //console.log('done read');
+              
+            }
+        });
+    };
+
+
+    Restaurant.setRestaurantData = function(id, data) {
+
+        return new Promise(function(resolve, reject) {
+
+            Restaurant.findById(
+                id,
+                function(err, instance) {
+                    if (err){
+                        reject(err);
+                    } else {
+                        instance.updateAttributes(data, function(err, data){
+                            if(err){
+                                reject(err);
+                            } else {
+                                resolve(data);
+                            }
+                        })
+                    }
+                }
+            )
+        })
+    }
+
+
+
+    /**
+     * upload profile image of restaurant owner
+     */
+    Restaurant.uploadKycProfileImage = function(ctx,options,cb) {
+        
+        if(!options) options = {};
+        ctx.req.params.container = containerName;
+        Restaurant.app.models.container.upload(ctx.req,ctx.result,options,function (err,fileObj) {
+            if(err) {
+                cb(err);
+            } else {
+                var fileInfo = fileObj.files.file[0];
+                var restaurant_id = fileObj.fields.restaurant_id[0];
+               
+                Restaurant.app.models.file_upload.uploadToS3(
+                    containerName,
+                    fileInfo
+                ).then(function(data){
+                    console.log('data', data)
+                    var data  = {
+                        profile_image: data
+                    };
+                    return Restaurant.setRestaurantData(restaurant_id, data);
+                })
+                .then(function(data){
+                    var resp = {
+                        profile_image: data.profile_image,
+                        baseUrl:AwsBuckets.s3bucket_url+containerName+'/'
+                    }
+                    cb(null, resp);
+                })
+                .catch(function(err){
+                    cb(err);
+                })
+            }
+        });
+    }
+
+
+    Restaurant.overviewPage = function(restaurant_id, cb){
+        Restaurant.findById(
+            restaurant_id,
+            {
+                include : {
+                    relation : 'restaurantUserReviews',
+                    scope : {
+                        limit : 1,
+                        order : 'id desc'
+                    }
+                }
+            },
+            function (err, restaurantData) {
+                if(!err){
+                    restaurantData.restaurantUserReviews.count(
+                        {restaurant_id:restaurant_id},
+                        function(err, count){
+                            if(!err){
+                                var data = {};
+                                data.restaurant_details = restaurantData;
+                                data.restaurant_details.no_of_reviews = count;
+                                data.images = [];
+                                data.baseUrl = AwsBuckets.s3bucket_url+containerName+'/'
+                                cb(null,data);
+                            }else{
+                                cb(err);
+                            }
+                        }
+                    );
+
+                }else{
+                    cb(err);
+                }
+            });
+    };
+
+
+
+
+
+    /*
+     send product_id=0 when user view restaurant details product_id not available
+     used while showing restaurant details when user navigate from restaurant list
+     received in search nearby restaurant
+     */
+    Restaurant.getDetails = function(id, product_id, lat, lng, cb){
+
+
+        var data = {};
+        data.restauant = [];
+        //data.combo_offers = [];
+        data.recommended_restaurants = [];
+        data.restaurant_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant;
+       // data.combo_offers_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.promotion_pic+'/';
+        data.app_user_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.app_user_pics+'/';
+        data.chef_video_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant;
+        data.cooking_videos_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.cooking_videos+'/';
+
+        Restaurant.findById(
+            id,
+            {
+                fields: ['id','city_id','restaurant_name','restaurant_image','address','overall_rating','open_at','close_at','country_id',
+                    'open_at2','close_at2','close_on_dow','min_order_amt','about_restaurant','latitude','longitude','zipcode',
+                    'no_of_followers','total_post','no_of_reviews','address','contact_no','locality','free_wifi','cuisines_available',
+                    'active','delivery_time','free_wifi','on_trial','no_of_check_in','delivery_charges','price_for_two','time_zone_id',
+                    'delivery_options','referred_by','restaurant_type','second_open_close','handle','chef_video','chef_video_image'
+                ],
+                include : [
+                    {
+                        relation : "restaurantUserReviews",
+                        scope:{
+                            order : "id desc",
+                            limit : 1,
+                            include : [
+                                {
+                                    relation : "app_user",
+                                    scope : {
+                                        fields : ['id','first_name','last_name','user_icon']
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        relation : "referredBy",
+                        scope : {
+                            fields : ['id','first_name','last_name','user_icon','handle']
+                        }
+                    },
+                    {
+                        relation: 'cooking_videos',
+                        scope : {
+                            fields : ['id','file_name', 'file_image_name', 'title'],
+                            limit: 3,
+                            order: 'id DESC',
+                        }
+                    },
+                    {
+                        relation: 'country'
+                    },
+                    {
+                        relation: 'timeZone'
+                    }
+                ]
+            },
+            function(err, restaurantInstance){
+                if(!err){
+                    if(restaurantInstance === null){
+                        var err = new Error();
+                        err.statusCode = 404;
+                        err.message = 'Restaurant not found';
+                        cb(err);
+                    }else{
+                        var restaurantInstance = JSON.parse(JSON.stringify(restaurantInstance));
+                        var cityOffset = restaurantInstance && restaurantInstance.timeZone && restaurantInstance.timeZone.offset ? restaurantInstance.timeZone.offset : 1100;
+                        restaurantInstance.open_at_str = (restaurantInstance.open_at != null) ? moment(restaurantInstance.open_at).utcOffset(cityOffset).format('HH:mm') : 'Not available';
+                        restaurantInstance.close_at_str = (restaurantInstance.close_at != null) ? moment(restaurantInstance.close_at).utcOffset(cityOffset).format('HH:mm') : 'Not available';
+                        restaurantInstance.open_at2_str = (restaurantInstance.open_at2 != null) && restaurantInstance.second_open_close ? moment(restaurantInstance.open_at2).utcOffset(cityOffset).format('HH:mm') : 'Not available';
+                        restaurantInstance.close_at2_str = (restaurantInstance.close_at2 != null) && restaurantInstance.second_open_close ? moment(restaurantInstance.close_at2).utcOffset(cityOffset).format('HH:mm') : 'Not available';
+
+                        Restaurant.isOpen(restaurantInstance.open_at,restaurantInstance.close_at,restaurantInstance.open_at2,restaurantInstance.close_at2,restaurantInstance.close_on_dow, cityOffset,restaurantInstance.second_open_close)
+                            .then(function (value) {
+                                restaurantInstance.is_open = value;
+                            });
+
+                        Restaurant.isClosingTime(restaurantInstance.open_at,restaurantInstance.open_at2,restaurantInstance.close_at,restaurantInstance.close_at2,restaurantInstance.close_on_dow, cityOffset,restaurantInstance.second_open_close)
+                            .then(function(val){
+                                restaurantInstance.is_closing_time = val;
+                            });
+                        console.log(restaurantInstance.close_on_dow)
+                        if(restaurantInstance.close_on_dow == null || restaurantInstance.close_on_dow == 7){
+                            restaurantInstance.close_on_dow = "All Days Open"
+                        }else{
+                            var myDays= ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+                            var sDate = new Date();
+                            //var c_dt = moment(sDate).utcOffset(cityOffset).format();
+                            //todayDayName = moment(c_dt).day();
+                            myDays.forEach(function(value,key){
+                                if(key == restaurantInstance.close_on_dow){
+                                    restaurantInstance.close_on_dow = value;
+                                }
+                            })
+
+                       }
+                           
+
+                        var cuisineAvailableList = restaurantInstance.cuisines_available;
+                        var deliveryOptions = restaurantInstance.delivery_options;
+                        if(cuisineAvailableList===null){
+                            var cuisineAvailableListArr = [];
+                        }else {
+                            var cuisineAvailableListArr = cuisineAvailableList.split(',').map(Number);
+                        }
+                        
+                        var promises = [
+                            Restaurant.app.models.Product.getSpecials(restaurantInstance.id),
+                            Restaurant.app.models.Cuisine.getCuisineList(),
+                            Restaurant.app.models.SysadminConfig.getConfigValue('ihf_percentage')
+                        ];
+                        if (!restaurantInstance.chef_video || restaurantInstance.cooking_videos.length ==0) {
+                            promises.push(Restaurant.app.models.default_video.getDefaultVideos())
+                        } 
+
+                        Promise.all(promises)
+                        .then(function(resp) {
+                            restaurantInstance.specials = resp[0];
+                            restaurantInstance.cuisines_available_arr = resp[1];
+                            restaurantInstance.IHF = resp[2];
+
+                            // set default chef and cooking videos if not uploaded
+                            if (resp[3] && resp[3].length){
+
+                               if(!restaurantInstance.chef_video) {
+                                   console.log('setting default chef video')
+                                    var chefVideo = resp[3].filter(function(video){
+                                        return video.config_name == 'chef_video'
+                                    });
+                                    console.log('default chefVideo => ', chefVideo)
+                                    data.chef_video_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.default_videos+"/";
+                                    restaurantInstance.chef_video = chefVideo.length ? chefVideo[0].file_name : null;
+                                    restaurantInstance.chef_video_image = chefVideo.length ? chefVideo[0].image_name : null;
+                                }
+
+                                if(restaurantInstance.cooking_videos.length == 0) {
+                                    var filterVideo  = resp[3].splice(0, 3);
+                                    restaurantInstance.cooking_videos = undefined;
+                                    var default_video = filterVideo.filter(function(video){
+                                            video.file_image_name = video.image_name;
+                                            video.image_name = undefined;
+                                        return video.config_name == 'cooking_video'
+                                    });
+                                    restaurantInstance.cooking_videos = default_video;
+                                    data.cooking_videos_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.default_videos+"/";
+                                }
+                            }
+                        })
+                        .catch(function(err){
+                            cb(err);
+                        })
+
+                        if(deliveryOptions===null){
+                            var deliveryOptionsArr = [];
+                        }else{
+                            var deliveryOptionsArr = deliveryOptions.split(',').map(Number);
+                        }
+                        restaurantInstance.delivery_options_arr = [];
+                        for(var i = 0; i < 3; i++){
+
+                            if(deliveryOptionsArr[i]==1){
+                                restaurantInstance.delivery_options_arr.push({id:1,text:'Dine In'});
+                            }
+
+                            if(deliveryOptionsArr[i]==2){
+                                restaurantInstance.delivery_options_arr.push({id:2,text:'Pick Up'});
+                            }
+
+                            if(deliveryOptionsArr[i]==3){
+                                restaurantInstance.delivery_options_arr.push({id:3,text:'Deliver'});
+                            }
+                        }
+
+
+                        data.restauant = restaurantInstance;
+
+                        // data.restaurant.cuisines_available = Restaurant.getCuisineList(restaurantInstance.cuisines_available);
+                        data.product_image_base_url = AwsBuckets.s3bucket_url+AwsBuckets.containers.product+'restaurant_'+restaurantInstance.id+'/';
+
+                        /*Start : get promotion offers*/
+                        // var Promotion = Restaurant.app.models.Promotion;
+                        // Promotion.find(
+                        //     {
+                        //         where : {
+                        //             restaurant_id : id,
+                        //             active : 1,
+                        //             to_date : {gt: new Date()},
+                        //             from_date : {lt: new Date()}
+                        //         }
+                        //     },
+                        //     function (err, comboOffers) {
+                        //         if(!err){
+                        //             data.combo_offers = comboOffers;
+
+                                    /*Start : get recommended restaurants*/
+                                    data.combo_offers = [];
+                                    var SysadminConfig = Restaurant.app.models.SysadminConfig;
+
+                                    SysadminConfig.findOne(
+                                        {
+                                            where : {config_name : 'recommended_restaurant_search_radius'}
+                                        },
+                                        function (err, SysadminConfigInstance) {
+
+                                            var checkWithinRadius = 10;
+                                            if(SysadminConfigInstance != null){
+                                                checkWithinRadius =  SysadminConfigInstance.config_value
+                                            }
+
+                                            //console.log(checkWithinRadius);
+                                            var userLocation = new loopback.GeoPoint({lat: lat, lng: lng});
+                                            //console.log(restaurantInstance.toJSON())
+
+                                            // var productSearchCond = [];
+                                            // if(product_id != 0 && restaurantInstance.toJSON().products.length){
+                                            //     var searchProductName = restaurantInstance.toJSON().products[0].product_name;
+                                            //     productSearchCond.push({'product_name': {like:'%'+searchProductName+'%'}, deleted : 0});
+                                            // }
+
+                                            Restaurant.find(
+                                                {
+                                                    fields : ['id','restaurant_name','restaurant_image','favourite_score','delivery_radius'],
+                                                    //limit:50,
+                                                    where: {
+                                                        location :{ near : userLocation, maxDistance:checkWithinRadius, unit: 'kilometers' },
+                                                        id : {neq :restaurantInstance.id },
+                                                        active:true, del_list :false
+                                                    },
+                                                    // include:{
+                                                    //     relation:"products",
+                                                    //     scope:{
+                                                    //         fields : ['id','product_name','restaurant_id','price'],
+                                                    //         //where :{or : productSearchCond}
+                                                    //     },
+                                                    //     limit : 1
+                                                    // }
+
+                                                },
+                                                function(err,recommended){
+                                                    //console.log('recommended', recommended);
+                                                    //console.log(recommended);
+                                                    data.recommended_restaurants = [];
+                                                    if(product_id > 0){
+
+                                                        for(i = 0; i < recommended.length; i++){
+                                                            if(recommended[i].hasOwnProperty('products') && recommended[i].products.length > 0){
+                                                                data.recommended_restaurants.push(recommended[i]);
+                                                            }
+                                                        }
+                                                    }else{
+                                                        data.recommended_restaurants = recommended;
+                                                    }
+                                                    //console.log(recommended.length);
+                                                    cb(null, data);
+                                                }
+                                            );
+
+
+                                        }
+                                    );
+                                    /*End : get recommended restaurants*/
+
+                                // }else{
+                                //    // console.log('comboOffers err', err);
+                                // }
+                        //     }
+                        // );
+                    }
+
+                    /*Stop : get promotion offers*/
+                }else{
+                    cb(err);
+                }
+            }
+        );
+    };
+
+
+
+
+    Restaurant.orderPage = function(id, cb){
+
+        Restaurant.findById(
+            id,
+            {
+                fields: [
+                    'id','country_id','city_id','restaurant_name','restaurant_image','address','overall_rating','open_at','close_at','open_at2','close_on_dow','close_at2','min_order_amt','about_restaurant',
+                    'no_of_followers','total_post','no_of_reviews','address','contact_no','locality','latitude','longitude','zipcode','time_zone_id',
+                    'active','delivery_time','free_wifi','on_trial','delivery_charges','delivery_radius','restaurant_type','second_open_close'
+                ],
+                include : [
+                    {
+                        relation : 'country',
+                        scope : {
+                            fields : ['country_name','currency_name','currency_code','country_code','currency_symbol']
+                        }
+                    },
+                    {
+                        relation: 'timeZone'
+                    }
+                ]
+            },
+            function(err, restInstance){
+                if(!err){
+                    if(restInstance==null){
+                        var err = new  Error();
+                        err.statusCode = 404;
+                        err.message = 'Restaurant not found';
+                        cb(err);
+                    }else{
+                        var restaurant = JSON.parse(JSON.stringify(restInstance));
+                        var cityOffset = restaurant.timeZone.offset ? restaurant.timeZone.offset : 1100;
+                        restInstance.open_at_str = (restInstance.open_at != null) ? moment(restInstance.open_at).utcOffset(cityOffset).format('hh:mm a') : 'Not available';
+                        restInstance.close_at_str = (restInstance.close_at != null) ? moment(restInstance.close_at).utcOffset(cityOffset).format('hh:mm a') : 'Not available';
+                        restInstance.open_at2_str = (restInstance.open_at2 != null) ? moment(restInstance.open_at2).utcOffset(cityOffset).format('hh:mm a') : 'Not available';
+                        restInstance.close_at2_str = (restInstance.close_at2 != null) ? moment(restInstance.close_at2).utcOffset(cityOffset).format('hh:mm a') : 'Not available';
+
+
+                        Restaurant.isOpen(restInstance.open_at,restInstance.close_at,restInstance.open_at2,restInstance.close_at2,restInstance.close_on_dow, cityOffset,restInstance.second_open_close)
+                            .then(function (value) {
+                                restInstance.is_open = value;
+                            });
+
+                        Restaurant.isClosingTime(restInstance.open_at,restInstance.open_at2,restInstance.close_at,restInstance.close_at2,restInstance.close_on_dow, cityOffset,restInstance.second_open_close)
+                            .then(function(val){
+                                restInstance.is_closing_time = val;
+                            })
+
+                        if(restInstance.close_on_dow == null || restInstance.close_on_dow == 7){
+                            restInstance.close_on_dow = "All Days Open"
+                        }else{
+                            var myDays= ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+                            myDays.forEach(function(value,key){
+                                if(key == restInstance.close_on_dow){
+                                    restInstance.close_on_dow = value;
+                                }
+                            })
+                        }
+
+                        var today = new Date();
+                        //console.log('uts offset time : '+ moment(restInstance.open_at).utcOffset(cityOffset).format('YYYY-MM-DD HH:mm a'))
+                        var open1 =  moment(restInstance.open_at).utcOffset(cityOffset).set({
+                            'year': today.getFullYear(),
+                            'month': today.getMonth(),
+                            'date': today.getDate()
+                        });
+                        //restInstance.open_at_local = open1.format('YYYY-MM-DD hh:mm a');
+                        restInstance.open_at = open1;
+
+                        var close1 =  moment(restInstance.close_at).utcOffset(cityOffset).set({
+                            'year': today.getFullYear(),
+                            'month': today.getMonth(),
+                            'date': today.getDate()
+                        });
+                        //restInstance.close_at_local = close1.format('YYYY-MM-DD hh:mm a');
+                        restInstance.close_at = close1;
+
+                        var open2 =  moment(restInstance.open_at2).utcOffset(cityOffset).set({
+                            'year': today.getFullYear(),
+                            'month': today.getMonth(),
+                            'date': today.getDate()
+                        });
+                        //restInstance.open_at2_local = open2.format('YYYY-MM-DD hh:mm a');
+                        restInstance.open_at2 = open2;
+
+                        var close2 =  moment(restInstance.close_at2).utcOffset(cityOffset).set({
+                            'year': today.getFullYear(),
+                            'month': today.getMonth(),
+                            'date': today.getDate()
+                        });
+                        //restInstance.close_at2_local = close2.format('YYYY-MM-DD hh:mm a');
+                        restInstance.close_at2 = close2
+
+
+                        var Hashtagpromotionproducts = Restaurant.app.models.hashtag_promotion.getHashTagPromotionProducts(id)
+                        var taxes = Restaurant.app.models.tax.getRestaurantTaxes(restInstance.id);
+
+                        var specials = {};
+                        Promise.all([Hashtagpromotionproducts, taxes]).then(function(value){
+                            if(value[0].length){
+                                specials.product_category_name =  'Specials';
+                                specials.has_sub_products = false;
+                                specials.promotions = value[0];
+                                console.log('specials.promotions', specials)
+                            }
+                            restInstance.taxes = value[1];
+                        }).catch(function(reason){
+                            cb(reason);
+                        });
+
+
+                        Restaurant.app.models.product.scope('one', {limit: 1, order: 'product_id'});
+
+                        var ProductCategory = Restaurant.app.models.product_category;
+                        ProductCategory.find(
+                            {
+                                fields : ['id','product_category_name'],
+                                where : {
+                                    restaurant_id : {inq : [0, id]}
+                                },
+                                include :[
+                                    {
+                                        relation : 'products',
+                                        scope : {
+                                            fields : ['id','product_name','price','product_category_id','description','restaurant_id','gst_taxable','wet_taxable','spiciness','is_chief_favourite'],
+                                            where : {restaurant_id :id, deleted : 0 },
+                                            include : [
+                                                {
+
+                                                    relation : 'product_feature',
+                                                    scope : {
+                                                        field : ['id','product_id','gluten_free','lactose_free','is_vegetarian']
+                                                    }
+                                                },
+                                                {
+                                                    relation : 'product_sub_product_mapping'
+                                                },
+                                                {
+                                                    relation : 'product_sizes',
+                                                    scope: {
+                                                        where: {
+                                                            deleted: 0
+                                                        }
+                                                    }
+                                                }
+                                            ]
+
+                                        }
+                                    }
+
+                                ]
+                            },
+                            function(err, categories){
+                                var final_categories = [];
+
+                                for(var i = 0;i < categories.length;i++){
+                                    (function(){
+                                        "use strict";
+                                        var single_category = JSON.parse(JSON.stringify(categories[i]));
+                                        console.log('single_category', single_category)
+                                      //  var single_category = single_category.toJSON();
+                                        console.log('single_category.products.length',single_category.products.length)
+                                        for(var j = 0; j < single_category.products.length; j++){
+                                            (function(j){
+
+                                                console.log('single_category.products[j].product_sub_product_mapping.length',  single_category)
+                                                if(single_category.products[j] && single_category.products[j].product_sub_product_mapping.length > 0){
+                                                    // delete single_category.__data.sub_product_category_mappings;
+                                                    console.log('has sub products')
+
+                                                    if(single_category.products[j].product_sub_product_mapping.length > 0);
+                                                    console.log(' have  sub products')
+                                                    single_category.products[j].has_sub_products = true;
+                                                    //Object.defineProperty(single_category.products[j], 'has_sub_products', {
+                                                    //    value: true
+                                                    //});
+                                                    console.log('single_category', single_category)
+                                                    //categories[i].products[j].has_sub_products = true;
+                                                }else{
+                                                    console.log('x dont have  sub products')
+                                                    //Object.defineProperty(single_category.products[j], 'has_sub_products', {
+                                                    //    value: false
+                                                    //});
+                                                    single_category.products[j].has_sub_products = false;
+                                                }
+                                                delete single_category.products[j].product_sub_product_mapping;
+                                            })(j)
+                                        }
+                                        if(single_category.products.length > 0){ //if product is empty
+                                            final_categories.push(single_category);
+                                        }else{
+                                            console.log('single_category',single_category)
+                                        }
+                                    })(i)
+
+                                }
+
+                                var data = {};
+                                if(!err){
+                                    data.restaurant = restInstance;
+                                    var SysadminConfig = Restaurant.app.models.SysadminConfig;
+                                    SysadminConfig.findOne(
+                                        {
+                                            where : {config_name : 'ihf_percentage'}
+                                        },
+                                        function(err, ConfigInstance){
+                                            if(!err){
+                                                console.log(parseFloat(ConfigInstance.config_value));
+                                                data.restaurant.ihf_percentage = parseFloat(ConfigInstance.config_value);
+                                            }
+                                        }
+                                    );
+
+
+                                   //  console.log(new Date());
+                                    //add promotions
+                                    var Promotion = Restaurant.app.models.Promotion;
+                                    Promotion.find(
+                                        {
+                                            //fields : ['id','promotion_name'],
+                                            include : {
+                                                relation : 'promotion_products',
+                                                scope : {
+                                                    include : {
+                                                        relation : 'products',
+                                                        scope : {
+                                                            fields : ['id','product_name','price','product_category_id','restaurant_id','gst_taxable','wet_taxable'],
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            where : {
+                                                restaurant_id :id,
+                                                status:1,
+                                                to_date : {gt: new Date()},
+                                                from_date : {lt: new Date()}
+
+                                            }
+                                        }, function (err,Promotions) {
+                                            var combo = {};
+                                            combo.product_category_name =  'Combo Offers';
+                                            combo.offers = Promotions;
+
+                                            if(!err){
+                                                debugger;
+                                                data.product_categories = final_categories;
+                                                console.log('Promotions.length', Promotions.length)
+                                                if(Promotions.length){
+                                                    data.product_categories.unshift(combo);
+                                                }
+                                                console.log('recommended adding at start ',specials);
+                                                if(specials.product_category_name != undefined){
+                                                    data.product_categories.unshift(specials);
+                                                }
+                                                cb(null,data);
+                                            }else{
+                                                console.log(err);
+                                            }
+                                        }
+                                    );
+                                } else {
+                                    cb(err);
+                                }
+                            }
+                        );
+                    }
+                }else{
+                    cb(err);
+                }
+            }
+        )
+    };
+
+
+
+
+    Restaurant.afterRemote('getDetails', function(context, remoteMethodOutput, next) {
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+
+        if(context.result){
+
+        context.result.restauant.open_at = undefined;
+        context.result.restauant.close_at = undefined;
+        context.result.restauant.open_at2 = undefined;
+        context.result.restauant.close_at2 = undefined;
+            
+        console.log(remoteMethodOutput.restauant.id);
+            //start : check loggedin user following a restaurant or not
+            var RestaurantFollowingUser = Restaurant.app.models.RestaurantFollowingUser;
+            RestaurantFollowingUser.findOne(
+                {
+                    where : {
+                        app_user_id : currentloggedinUserId,
+                        restaurant_id : remoteMethodOutput.restauant.id
+                    }
+                },
+                function(err, instance){
+                    if(!err && instance != null){
+                        context.result.restauant.following_restaurant = instance.status;
+                    }else{
+                        context.result.restauant.following_restaurant = false;
+                    }
+                    next();
+                }
+            );
+            //end : check loggedin user following a restaurant or not
+
+            /* increase tag count code starts here*/
+            var TagLogs = Restaurant.app.models.tag_logs;
+            console.log('remoteMethodOutput.handle ', remoteMethodOutput.handle);
+            TagLogs.addTagLogs('@'+remoteMethodOutput.restauant.handle, remoteMethodOutput.restauant.id, context.args.lat, context.args.lng, 1,'restaurant_view',remoteMethodOutput.restauant.product_id,0)
+                .then(function(success){
+                    console.log('called on view tag')
+                })
+                .catch(function(error){
+                    console.log('eeror' , error);
+                })
+            /* increase tag count code ends here*/
+        }
+    });
+
+
+
+    Restaurant.getZomatoLocations = function(q, cb){
+
+        var client = zomato.createClient({
+            userKey: zomatoConfig.user_key
+        });
+
+        client.getLocations({
+            query:q // suggestion for location name
+            //lat:"28.613939", //latitude
+            //lon:"77.209021", //longitude
+            //count:"2" // number of maximum result to fetch
+        }, function(err, result){
+            if(!err){
+                console.log(result);
+                result = JSON.parse(result);
+                cb(null,result);
+            }else {
+                console.log(err);
+            }
+        });
+    };
+
+
+    Restaurant.getZomatoRestaurantList = function(location, search_text, page, numPerPage, cb){
+
+        var client = zomato.createClient({
+            userKey: zomatoConfig.user_key
+        });
+
+        client.getLocations({
+            query:location // suggestion for location name
+            //lat:"28.613939", //latitude
+            //lon:"77.209021", //longitude
+            //count:"2" // number of maximum result to fetch
+        }, function(err, locationResult){
+            if(!err){
+                locationResult = JSON.parse(locationResult);
+                console.log(locationResult)
+                var searchEntityId = null;
+                var searchEntityType = null;
+                if(typeof locationResult.location_suggestions[0] !="undefined" && typeof locationResult.location_suggestions[0].entity_id !="undefined"){
+                    searchEntityId = locationResult.location_suggestions[0].entity_id;
+                    searchEntityType = locationResult.location_suggestions[0].entity_type;
+                }
+                console.log('searchEntityId : ' ,searchEntityId);
+                console.log('searchEntityType : ' ,searchEntityType);
+
+                //cb(null,locationResult);
+
+                client.search({
+                    q:search_text,
+                    //entity_type : 'city'
+                    entity_id:searchEntityId, //location id
+                    entity_type:searchEntityType, // location type (city,subzone,zone , landmark, metro,group)
+                    //q:"Cafe" ,//Search Keyword
+                    //lat:"28.613939", //latitude
+                    //lon:"77.209021", //longitude
+                    count: numPerPage, // number of maximum result to display
+                    start:(page-1) * numPerPage //fetch results after offset
+                    //radius:"10000" , //radius around (lat,lon); to define search area, defined in meters(M)
+                    //cuisines : "3,7" , //list of cuisine id's separated by comma
+                    //establishment_type : "" , //estblishment id obtained from establishments call
+                    //collection_id : "29" , //collection id obtained from collections call
+                    //category :  "9" ,//	category ids obtained from categories call
+                    //sort : " cost,rating,real_distance" ,//choose any one out of these available choices
+                    //order: "asc"
+                }, function(err, result){
+                    if(!err){
+                        result = JSON.parse(result);
+                        // console.log(result);
+                        cb(null,result);
+                    }else {
+                        console.log(err);
+                    }
+                });
+            }else {
+                console.log(err);
+            }
+        });
+
+
+    };
+
+
+
+    Restaurant.testStripe = function (cb) {
+        //delete stripe account
+        /*stripe.accounts.del('acct_18z5T9IudFqpN4Ak',function(err, account) {
+         // asynchronously called
+         if(!err)
+         cb(null,account);
+         else
+         cb(err);
+         });*/
+
+        var acct;
+        var CONNECTED_STRIPE_ACCOUNT_ID = 'acct_18zKv6AqKTrGfySy';
+        var EXTERNAL_ACCOUNT = "ba_18zKxRAqKTrGfySyuvriI0bk";
+        /*  stripe.customers.create({
+         description: 'Customer for john doe',
+         source: "tok_18zVGuJdlyk4LQ4ic0Xgi228" // obtained with Stripe.js
+         }, function(err, customer) {
+         // asynchronously called
+         if(!err)
+         cb(null,customer);
+         else
+         cb(err);
+         });*/
+
+        stripe.transfers.create({
+            amount: 400,
+            currency: "aud",
+            destination: "card_18zVGuJdlyk4LQ4iBLi6zV8E",
+            description: "Transfer for test@example.com"
+        }, function(err, transfer) {
+            // asynchronously called
+            if(!err)
+                cb(null,transfer);
+            else
+                cb(err);
+        });
+
+        /* stripe.tokens.create({
+         card: {
+         "number": '4242424242424242',
+         "exp_month": 12,
+         "exp_year": 2017,
+         "cvc": '123'
+         }
+         }, function(err, token) {
+         // asynchronously called
+         if(!err)
+         cb(null,token);
+         else
+         cb(err);
+         });*/
+
+        /*stripe.accounts.listExternalAccounts(CONNECTED_STRIPE_ACCOUNT_ID, {object: "bank_account"}, function(err, bank_accounts) {
+         // asynchronously called
+         if(!err)
+         cb(null,bank_accounts);
+         else
+         cb(err);
+         });*/
+
+        //account list
+        /*stripe.accounts.list(
+         { limit: 3 },
+         function(err, accounts) {
+         // asynchronously called
+         // asynchronously called
+         if(!err)
+         cb(null,accounts);
+         else
+         cb(err);
+         }
+         );*/
+
+
+        /*   stripe.countrySpecs.list(
+         { limit: 200 },
+         function(err, countrySpecs) {
+         // asynchronously called
+         if(!err)
+         cb(null,countrySpecs);
+         else
+         cb(err);
+         }
+         );*/
+
+
+
+        //get balance
+        /*stripe.balance.retrieve(function(err, balance) {
+         // asynchronously called
+         if(!err)
+         cb(null,balance);
+         else
+         cb(err);
+         });*/
+        //update account
+        /*stripe.accounts.update(CONNECTED_STRIPE_ACCOUNT_ID, {
+         "legal_entity":{
+         "dob":{
+         "day":2,
+         "month":11,
+         "year":1986
+         },
+         "address": {
+         "city":"WEST BEACH",
+         "line1":"Broadway Av",
+         "postal_code":"5024",
+         "state":"SA"
+         },
+         "business_name":"Zapdish",
+         "business_tax_id":null,
+         "first_name":"Ramesh",
+         "last_name": " Nagarajan",
+         "type":"company"
+         },
+         "tos_acceptance":{
+         "date":Math.floor(new Date() / 1000),
+         "ip": "206.183.111.25"
+         }
+         },function(err, account) {
+         // asynchronously called
+         if(!err)
+         cb(null,account);
+         else
+         cb(err);
+         });*/
+
+        //transfer fund
+        /*stripe.transfers.create({
+         amount: 100,
+         currency: "aud",
+         destination: "ba_18z5VoIudFqpN4AkKCi3mrdc",
+         description: "Transfer for test@example.com",
+         source_type: 'bank_account'
+         }, function(err, transfer) {
+         // asynchronously called
+         if(!err)
+         cb(null,transfer);
+         else
+         cb(err);
+         });*/
+        /*stripe.transfers.create(
+         {
+         amount: 1000,
+         currency: "aud",
+         destination: "ba_18zL0pAqKTrGfySywIUig4e5"
+         },
+         {stripe_account: CONNECTED_STRIPE_ACCOUNT_ID}, function(err, transfer) {
+         // asynchronously called
+         if(!err)
+         cb(null,transfer);
+         else
+         cb(err);
+         }
+         );
+         */
+
+        //create external account
+        /* stripe.accounts.createExternalAccount(
+         CONNECTED_STRIPE_ACCOUNT_ID,
+         {external_account: 'btok_9HuqGnpP2IplqM'},
+         function(err, bank_account) {
+         if(!err)
+         cb(null,bank_account);
+         else
+         cb(err);
+         }
+         );*/
+        // to create managed account
+        /*stripe.accounts.create({
+         managed: true,
+         country: 'AU',
+
+         }, function(err, account) {
+         if(!err)
+         cb(null,account);
+         else
+         cb(err);
+
+         });*/
+    };
+
+    Restaurant.verifyAndChangePassword = function(data, cb){
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentLoggedInUserId = accessToken && accessToken.userId;
+        console.log(currentLoggedInUserId);
+        try{
+            console.log(data);
+            Restaurant.findById(
+                currentLoggedInUserId,
+                function(err, userInstance){
+                    if(!err){
+                        userInstance.hasPassword(data.old_password, function(err, iMatch){
+                            if(!err){
+                                if(!iMatch){
+                                    var err = new Error();
+                                    err.message = 'Old password is wrong';
+                                    err.statusCode = 422;
+                                    cb(err);
+                                }else{
+                                    if(data.new_password !== data.confirm_password){
+                                        var err = new Error();
+                                        err.message = 'New password and confirm password are not same';
+                                        err.statusCode = 422;
+                                        cb(err);
+                                    }else{
+                                        userInstance.updateAttribute('password',data.new_password, function(err, user){
+                                            if(!err){
+                                                var user = new Error();
+                                                user.statusCode = 200;
+                                                user.message = 'Password updated successfully';
+                                                cb(null,user);
+                                            }else{
+                                                cb(err);
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        });
+
+                    }else{
+                        cb(err);
+                    }
+                }
+            )
+        }catch(err){
+            cb(err)
+        }
+    };
+
+    /**
+     * generateOtp 
+     * 1st step in forgot password 
+     */
+    Restaurant.generateOtp = function(email, cb){
+        console.log('email : ', email)
+        Restaurant.findOne(
+            {
+                where : {email : email}
+            },
+            function(err, data){
+                console.log('data', data)
+                if(!err){
+                    if(data){
+                        Restaurant.sendEmail(email, data)
+                            .then(function(data){
+                                console.log(data)
+                                cb(err, {message : "Generated a OTP and sent to your email address."});
+                            })
+                            .catch(function(reason){
+                                console.log(reason)
+                                cb(reason);
+                            })
+
+                    }else{
+                        err = new Error();
+                        err.statusCode = 404;
+                        err.message = "No Email found";
+                        cb(err)
+                    }
+
+                }
+            }
+        )
+    };
+
+    /**
+     * verifyOtp,
+     * Forgot pasword 2nd Step
+     * this api generate access token to reset password
+     */
+    Restaurant.verifyOtp = function (email, otpToken, cb) {
+
+        Restaurant.app.models.otp_model.verifyOtp(otpToken, email, 3)
+        .then(function(valid){
+            console.log('valid', valid)
+            Restaurant.findOne(
+                {
+                    where : {email : email}
+                },
+                function(err, RestaurantData){
+                    var ttl = 600;
+                    RestaurantData.accessTokens.create({ttl: ttl}, function(err, accessToken) {
+                        if (err) {
+                            return cb(err);
+                        }else{
+                            Restaurant.emit('resetPasswordRequest', {
+                                email: RestaurantData.email,
+                                accessToken: accessToken,
+                                user: RestaurantData
+                            });
+                            cb(null, accessToken);
+                        }
+                    });
+                }
+            )
+        })
+        .catch(function(err){
+            var err = new Error();
+            err.message = 'Invalid OTP.';
+            err.statusCode = 422;
+            cb(err);
+        });
+    };
+
+
+    Restaurant.verifyOtpNew = function (email, otpToken, cb) {
+
+        Restaurant.app.models.otp_model.verifyOtp(otpToken, email, 3)
+        .then(function(valid){
+            console.log('valid', valid)
+            Restaurant.findOne(
+                {
+                    where : {email : email}
+                },
+                function(err, RestaurantData){
+                    var ttl = 600;
+                    RestaurantData.accessTokens.create({ttl: ttl}, function(err, accessToken) {
+                        if (err) {
+                            return cb(err);
+                        }else{
+                            Restaurant.emit('resetPasswordRequest', {
+                                email: RestaurantData.email,
+                                accessToken: accessToken,
+                                user: RestaurantData
+                            });
+                            cb(null, accessToken);
+                        }
+                    });
+                }
+            )
+        })
+        .catch(function(err){
+            var err = new Error();
+            err.message = 'Invalid OTP.';
+            err.statusCode = 422;
+            cb(err);
+        });
+    };
+
+    
+    Restaurant.updateKycComplete = function(restarantId, cb) {
+        
+        Restaurant.findById(
+            restarantId,
+            function(err, restauantInstace){
+                if(!err){
+                    if (restauantInstace) {
+                        var status = true;
+                        if (restauantInstace.kyc_completed) {
+                            status = false;
+                        }
+                        restauantInstace.updateAttributes({
+                            kyc_completed: status,
+                            active: status
+                        }, function(err, data){
+                            cb(err, {
+                                kyc_completed: data.kyc_completed,
+                                active: data.active
+                            })
+                        });
+                    } else {
+                        var err = new Error('Invalid restaurant');
+                        cb(err);
+                    }
+                }else{
+                    cb(err);
+                }
+            }
+        )
+    }
+
+
+    /**
+     * get kyc complete or not details
+     */
+    Restaurant.isKycComplete = function(restarantId, cb) {
+        Restaurant.findById(
+            restarantId,
+            {
+                fields: ['id', 'kyc_completed']
+            },function(err, data) {
+                if(err){
+                    cb(err);
+                } else {
+                    cb(null, data)
+                }
+            }
+        )
+    }
+
+    Restaurant.on('resetPasswordRequest', function (info) {
+        console.log(info);
+        console.log(info.email); // the email of the requested user
+        console.log(info.accessToken.id); // the temp access token to allow password reset
+
+        // requires AccessToken.belongsTo(User)
+        info.accessToken.user(function (err, user) {
+            console.log(user); // the actual user
+            console.log('user ', user);
+        });
+    });
+
+    Restaurant.sendEmail = function(email, restaurantData){
+        console.log('sendEmail')
+        return new Promise(function(resolve, reject){
+            console.log('email', email)
+            Restaurant.app.models.otp_model.setOtp(email)
+            .then(function(data){
+                var b = new Buffer('spotcunch###'+restaurantData.id+'###'+data.otp);
+                var s = b.toString('base64'); 
+    
+                var passRecoverylink = config.appHostPath+'/#/restaurant/reset-password/'+s;
+                //console.log(config.host);
+    
+                var myMessage = {img_base_url : config.appHostPath , link:passRecoverylink, restaurant_name : restaurantData.restaurant_name, otp : data.otp };
+                var renderer = loopback.template(path.resolve(__dirname, '../../common/views/email/restaurant-reset-password.ejs'));
+                var html_body = renderer(myMessage);
+    
+                // send reset password email to user
+                Restaurant.app.models.Email.send({
+                    to: email,
+                    from: 'support@zapdish.me',
+                    subject: 'Reset ZapDish account Password',
+                    html: html_body
+                }, function(err, mail) {
+    
+                    if(!err){
+                        console.log('Email Sent!');
+                        resolve('email sent');
+                    }else{
+                        reject(err);
+                    }
+                });
+            })
+            .catch(function(err){
+                reject('Error occured while generating otp', err)
+            })
+        })
+    };
+
+
+
+
+
+
+    Restaurant.createTrailRestaurant = function(data, cb){
+
+        var ctx = loopback.getCurrentContext();
+        var accessToken = ctx && ctx.get('accessToken');
+        var currentloggedinUserId = accessToken && accessToken.userId;
+
+        data.country_id = 0;
+        data.city_id = 0;
+        data.active = 0;
+        data.on_trial = 1;
+        data.referred_by = currentloggedinUserId;
+        delete Restaurant.validations.email;
+
+        Restaurant.create(
+            data,
+            function(err, restaurantData){
+                if(!err){
+                    cb(null,restaurantData)
+                }else{
+                    cb(err);
+                }
+            }
+        )
+    };
+
+
+    //Restaurant.afterRemote('createTrailRestaurant', function(context, remoteMethodOutput, next) {
+    //    console.log(remoteMethodOutput)
+    //
+    //    var ctx = loopback.getCurrentContext();
+    //    var accessToken = ctx && ctx.get('accessToken');
+    //    var currentloggedinUserId = accessToken && accessToken.userId;
+    //
+    //    var RestaurantReferral = Restaurant.app.models.restaurant_referral;
+    //    RestaurantReferral.create(
+    //        {restaurant_id : remoteMethodOutput.id, app_user_id : currentloggedinUserId},
+    //        function(err, data){
+    //            if(!err){
+    //                console.log('added app_user_id in referral list');
+    //            }
+    //        }
+    //    );
+    //
+    //    next();
+    //});
+
+
+
+    Restaurant.getRecommendedRestaurantsBasedOnFlickMsgTag = function(lat, lng, not_in_restaurant_id, flickMessage, loggedInUserId){
+
+        return new Promise(function(resolve, reject){
+
+            var tags =  flickMessage.match(/[#]([a-zA-Z0-9]+)/g);
+            var tag_names = '';
+            console.log(tags);
+            if(tags != null){
+                for(var tagIndex in tags) {
+
+                    tag_names += "'"+tags[tagIndex].slice(1)+"'";
+                    if(tagIndex != (tags.length-1)){
+                        tag_names += ", ";
+                    }
+
+                }
+            }
+            if(tag_names==''){
+                tag_names= null
+            }
+            console.log('tag_names',tag_names);
+            var SysadminConfig = Restaurant.app.models.sysadmin_config;
+            var userLocation = new loopback.GeoPoint({lat: lat, lng: lng});
+
+            SysadminConfig.findOne(
+                {
+                    where : {config_name : 'recommended_restaurant_search_radius'}
+                },
+                function (err, SysadminConfigInstance) {
+                    if(!err){
+                        var checkWithinRadius = 10;
+                        if(SysadminConfigInstance != null){
+                            checkWithinRadius =  SysadminConfigInstance.config_value;
+                        }
+
+                        console.log('checkWithinRadius', checkWithinRadius);
+                        Restaurant.find(
+                            {
+                                fields : ['id','restaurant_name','restaurant_image','favourite_score','delivery_radius'],
+                                where: {
+                                    location :{ near : userLocation, maxDistance:checkWithinRadius, unit: 'kilometers' },
+                                    id : {neq : not_in_restaurant_id },
+                                    active : true, del_list : false
+                                }
+                            },
+                            function(err,recommended){
+                                console.log('recommended', recommended);
+                                var recommended_restaurants = [];
+                                if(!err){
+                                        for(var i = 0; i < recommended.length; i++){
+                                           recommended_restaurants.push(recommended[i].id);
+                                        }
+                                        recommended_restaurants = recommended_restaurants.toString();
+                                        if(recommended_restaurants == ''){
+                                            recommended_restaurants = null;
+                                        }
+                                        console.log('recommended_restaurants', recommended_restaurants);
+
+                                        var sql = "SELECT restaurant.id,restaurant_name, restaurant_image, tag_name , latitude, longitude, delivery_radius,\
+                                        product_id, restaurant_following_user.app_user_id as is_following FROM restaurant join product_tag\
+                                        on product_tag.restaurant_id = restaurant.id left join restaurant_following_user\
+                                        on restaurant_following_user.restaurant_id = restaurant.id and app_user_id = "+loggedInUserId+" and restaurant_following_user.status = 1 where tag_name in ("+tag_names+") and restaurant.id in ("+recommended_restaurants+")\
+                                        group by restaurant_name";
+                                        console.log(sql);
+
+                                        Restaurant.dataSource.connector.execute(sql, [], function(err, restaurantData){
+                                            if(!err){
+                                                resolve(restaurantData);
+                                                for(i = 0; i < restaurantData.length; i++){
+                                                    var restaurantLocation = new loopback.GeoPoint({lat: restaurantData[i].latitude, lng: restaurantData[i].longitude});
+                                                    var dist = userLocation.distanceTo(restaurantLocation, {type: 'kilometers'})
+                                                    restaurantData[i].in_radius = true;
+                                                    restaurantData[i].distance = dist;
+                                                    if(restaurantData[i].is_following){
+                                                        restaurantData[i].is_following = true;
+                                                    }else{
+                                                        restaurantData[i].is_following = false;
+                                                    }
+                                                    if(dist > restaurantData[i].delivery_radius){
+                                                        restaurantData[i].in_radius = false;
+                                                    }
+                                                }
+
+                                            }else{
+                                                console.log(err);
+                                            }
+                                        });
+
+                                }
+
+                            });
+                    }
+                });
+        });
+
+    }
+
+
+
+
+
+
+
+
+    Restaurant.getRecommendedRestaurants = function(lat, lng, not_in_restaurant_id, product_name, cb){
+
+        var SysadminConfig = Restaurant.app.models.SysadminConfig;
+        var userLocation = new loopback.GeoPoint({lat: lat, lng: lng});
+
+        SysadminConfig.findOne(
+            {
+                where : {config_name : 'recommended_restaurant_search_radius'}
+            },
+            function (err, SysadminConfigInstance) {
+                if(!err){
+                    var checkWithinRadius = 10;
+                    if(SysadminConfigInstance != null){
+                        checkWithinRadius =  SysadminConfigInstance.config_value;
+                    }
+
+                    var productSearchCond = [];
+                    productSearchCond.push({'product_name': {like:'%'+product_name+'%'}, deleted: 0});
+
+                    Restaurant.find(
+                        {
+                            fields : ['id','restaurant_name','restaurant_image','favourite_score','delivery_radius'],
+                            //limit:50,
+                            where: {
+                                location :{ near : userLocation, maxDistance:checkWithinRadius, unit: 'kilometers' },
+                                id : {neq : not_in_restaurant_id, active : 1, del_list : 0 }
+                            },
+                            include:{
+                                relation:"products",
+                                scope:{
+                                    fields : ['id','product_name','restaurant_id','price'],
+                                    where :{or : productSearchCond}
+                                },
+                                limit : 1
+                            }
+                        },
+                        function(err,recommended){
+                            console.log(recommended)
+                            var recommended_restaurants = [];
+                            if(!err){
+                                for(i = 0; i < recommended.length; i++){
+                                    if(recommended[i].products.length > 0){
+                                        recommended_restaurants.push(recommended[i]);
+                                    }
+                                }
+                                cb(err, recommended_restaurants);
+                            }
+
+                        }
+                    );
+
+                }
+            }
+        );
+    };
+
+
+
+
+    Restaurant.checkIn = function(restaurant_id, cb){
+
+        Restaurant.findById(
+            restaurant_id,
+            function(err, restaurantInstance){
+                if(!err){
+                    if(restaurantInstance.no_of_check_in == null){
+                        restaurantInstance.no_of_check_in = 1;
+                    }else{
+                        restaurantInstance.no_of_check_in = restaurantInstance.no_of_check_in+1;
+                    }
+                    restaurantInstance.updateAttributes(
+                        restaurantInstance,
+                        function(err, data){
+                            cb(err, data);
+                        }
+                    )
+                }
+
+            }
+        );
+    };
+
+
+
+    Restaurant.resetRestaurantPassword = function(data, cb){
+        
+        Restaurant.findById(
+            data.id,
+            function (err, adminInstance) {
+                if(!err){
+                    adminInstance.password = data.password;
+                    Restaurant.upsert(
+                        adminInstance, function(err, user){
+                        if(!err){
+                            cb(null, user)
+                        }else{
+                            cb(err);
+                        }
+                    });
+                } else{
+                    cb(err);
+                }
+
+            }
+        )
+    };
+
+
+
+    Restaurant.getTodayOpenCloseUtcTiming = function(restaurantID){
+
+        return new Promise(function (resolve, reject) {
+            Restaurant.findById(
+                restaurantID,
+                {
+                    fields : ['id','open_at','close_at','time_zone_id'],
+                    include : {
+                        relation : 'timeZone',
+                        scope : {
+                            fields : ['id','offset']
+                        }
+                    }
+                },
+                function(err, restaurantInst){
+                    if(!err){
+                        var restaurantInst = restaurantInst.toJSON();
+                        if(restaurantInst != null){
+                            //console.log(restaurantInst);
+                            var open_dt = new Date(restaurantInst.open_at);
+                            var close_dt = new Date(restaurantInst.close_at);
+
+                            open_dt = moment(open_dt).utcOffset(restaurantInst.timeZone.offset);
+                            close_dt = moment(close_dt).utcOffset(restaurantInst.timeZone.offset);
+
+                            var sDate = new Date();
+                            var cDate = sDate.getDate();
+                            var cMonth = sDate.getMonth();
+                            var cYear = sDate.getFullYear();
+                            //console.log(cYear);
+                            // considering restaurant open in morning and closing in evening or night of day
+                            open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).utc().format('YYYY-MM-DD HH:mm:ss');
+                            close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).utc().format('YYYY-MM-DD HH:mm:ss');
+                            resolve({open_dt : open_dt, close_dt : close_dt });
+                        }
+                    }else{
+                        reject(err);
+                    }
+                }
+            );
+        })
+    }
+
+
+    Restaurant.isOpenFn = function(openTime, closeTime,openTime2, closeTime2,closeOnDow, cityOffset, secondOpenClose){ 
+
+        var sDate = new Date();
+        var cDate = sDate.getDate();
+        var cMonth = sDate.getMonth();
+        var cYear = sDate.getFullYear();
+        var c_dt = moment(sDate).utcOffset(cityOffset).format();
+        var cDayWithOffset = moment(c_dt).day();
+
+        if (cDayWithOffset != closeOnDow) {
+            if (secondOpenClose) {
+                var open_dt = new Date(openTime);
+                var close_dt = new Date(closeTime);
+                var open_dt2 = new Date(openTime2);
+                var close_dt2 = new Date(closeTime2);
+
+                open_dt = moment(open_dt).utcOffset(cityOffset);
+                close_dt = moment(close_dt).utcOffset(cityOffset);
+                open_dt2 = moment(open_dt2).utcOffset(cityOffset);
+                close_dt2 = moment(close_dt2).utcOffset(cityOffset);
+
+
+                // considering restaurant open in morning and closing in evening or night of day
+                open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).format();
+                close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).format();
+                open_dt2 = moment(open_dt2).date(cDate).month(cMonth).year(cYear).format();
+                close_dt2 = moment(close_dt2).date(cDate).month(cMonth).year(cYear).format();
+
+
+                //console.log('now ' + sDate)
+                console.log('now secondOpenCloseset')
+                var c_dt = moment(sDate).utcOffset(cityOffset).format();
+
+                //change datewithtimezoneoffset
+
+                if (open_dt < c_dt && c_dt < close_dt || open_dt2 < c_dt && c_dt < close_dt2) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                var open_dt = new Date(openTime);
+                var close_dt = new Date(closeTime);
+
+                open_dt = moment(open_dt).utcOffset(cityOffset);
+                close_dt = moment(close_dt).utcOffset(cityOffset);
+
+                open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).format();
+                close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).format();
+
+                console.log('now secondOpenClose not set')
+                var c_dt = moment(sDate).utcOffset(cityOffset).format();
+
+                //change datewithtimezoneoffset
+
+                if (open_dt < c_dt && c_dt < close_dt) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+
+    }
+
+    Restaurant.isOpen = function(openTime, closeTime,openTime2, closeTime2,closeOnDow, cityOffset, secondOpenClose){
+        
+        return new Promise(function(resolve, reject){
+
+            var sDate = new Date();
+            var cDate = sDate.getDate();
+            var cMonth = sDate.getMonth();
+            var cYear = sDate.getFullYear();
+            var c_dt = moment(sDate).utcOffset(cityOffset).format();
+            var cDayWithOffset = moment(c_dt).day();
+
+            if (cDayWithOffset != closeOnDow) {
+                if (secondOpenClose) {
+                    var open_dt = new Date(openTime);
+                    var close_dt = new Date(closeTime);
+                    var open_dt2 = new Date(openTime2);
+                    var close_dt2 = new Date(closeTime2);
+
+                    open_dt = moment(open_dt).utcOffset(cityOffset);
+                    close_dt = moment(close_dt).utcOffset(cityOffset);
+                    open_dt2 = moment(open_dt2).utcOffset(cityOffset);
+                    close_dt2 = moment(close_dt2).utcOffset(cityOffset);
+
+
+                    // considering restaurant open in morning and closing in evening or night of day
+                    open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).format();
+                    close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).format();
+                    open_dt2 = moment(open_dt2).date(cDate).month(cMonth).year(cYear).format();
+                    close_dt2 = moment(close_dt2).date(cDate).month(cMonth).year(cYear).format();
+
+
+                    //console.log('now ' + sDate)
+                    console.log('now secondOpenCloseset')
+                    var c_dt = moment(sDate).utcOffset(cityOffset).format();
+
+                    //change datewithtimezoneoffset
+
+                    if (open_dt < c_dt && c_dt < close_dt || open_dt2 < c_dt && c_dt < close_dt2) {
+                        resolve(true)
+                    } else {
+                        resolve(false)
+                    }
+                } else {
+                    var open_dt = new Date(openTime);
+                    var close_dt = new Date(closeTime);
+
+                    open_dt = moment(open_dt).utcOffset(cityOffset);
+                    close_dt = moment(close_dt).utcOffset(cityOffset);
+
+                    open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).format();
+                    close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).format();
+
+                    console.log('now secondOpenClose not set')
+                    var c_dt = moment(sDate).utcOffset(cityOffset).format();
+
+                    //change datewithtimezoneoffset
+
+                    if (open_dt < c_dt && c_dt < close_dt) {
+                        resolve(true)
+                    } else {
+                        resolve(false)
+                    }
+                }
+            } else {
+                resolve(false)
+            }
+        });
+    }
+
+    /*Restaurant.isOpen = function(openTime, closeTime, cityOffset){
+        return new Promise(function(resolve, reject){
+            var open_dt = new Date(openTime);
+            var close_dt = new Date(closeTime);
+            open_dt = moment(open_dt).utcOffset(cityOffset);
+            close_dt = moment(close_dt).utcOffset(cityOffset);
+
+            var sDate = new Date();
+            var cDate = sDate.getDate();
+            var cMonth = sDate.getMonth();
+            var cYear = sDate.getFullYear();
+            console.log(cYear);
+            // considering restaurant open in morning and closing in evening or night of day
+            open_dt = moment(open_dt).date(cDate).month(cMonth).year(cYear).format();
+            close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear).format();
+
+
+            console.log('now '+ sDate)
+            var c_dt = moment(sDate).utcOffset(cityOffset).format();
+
+            //change datewithtimezoneoffset
+
+            console.log('open dt'+open_dt);
+            console.log('close_dt '+close_dt);
+            console.log('c date'+c_dt);
+
+            if(open_dt < c_dt && c_dt < close_dt){
+                resolve(true)
+            }else{
+                resolve(false)
+            }
+        });
+    }*/
+
+    Restaurant.getCityUtcOffsetOffRestaurant = function(restId){
+
+        return new Promise(function(resolve, reject){
+
+            Restaurant.findById(
+                restId,
+                {
+                    fields : ['id','open_at','close_at','city_id'],
+                    include : {
+                        relation : 'city',
+                        scope : {
+                            fields : ['id','utc_offset']
+                        }
+                    }
+                },
+                function(err, restaurantInst){
+                    if(!err){
+                        if(restaurantInst != null){
+                            console.log('rest data');
+                            console.log(restaurantInst);
+                            resolve(restaurantInst.city.utf_offset)
+                        }
+                    }else{
+                        console.log(err)
+                        reject(660);
+                    }
+                }
+            );
+
+        })
+    }
+
+
+    Restaurant.isClosingTime = function(openTime,openTime2,closeTime, closeTime2,closeOnDow,cityOffset,secondOpenClose){
+
+        return new Promise(function(resolve, reject){
+            try{
+
+                Restaurant.isOpen(openTime,closeTime, openTime2, closeTime2,closeOnDow,cityOffset,secondOpenClose).then(function (value) {
+                    if(value) {
+                        if (secondOpenClose) {
+                            var SysadminConfig = Restaurant.app.models.sysadmin_config;
+                            SysadminConfig.getRestaurantClosingThresholdTime(
+                                function (err, thresholdTime) {
+                                    //console.log('thresholdTime', thresholdTime);
+
+                                    var close_dt = new Date(closeTime);
+                                    var close_dt2 = new Date(closeTime2);
+
+                                    close_dt = moment(close_dt).utcOffset(cityOffset);
+                                    close_dt2 = moment(close_dt2).utcOffset(cityOffset);
+
+                                    var sDate = new Date();
+                                    var cDate = sDate.getDate();
+                                    var cMonth = sDate.getMonth();
+                                    var cYear = sDate.getFullYear();
+                                    close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear);
+                                    close_dt2 = moment(close_dt2).date(cDate).month(cMonth).year(cYear);
+                                    //console.log('thresholdTime:--', thresholdTime.valueOf());
+                                    //console.log('close_dt', close_dt.format());
+                                    //console.log('close_dt2', close_dt2.format());
+                                    var c_dt = moment(sDate).utcOffset(cityOffset).valueOf();
+
+                                    var minutesDiff = close_dt.diff(c_dt, 'minutes');
+                                    var minutesDiff2 = close_dt2.diff(c_dt, 'minutes');
+                                    if (minutesDiff < 0) {
+                                        if (minutesDiff2 < thresholdTime) {
+                                            //console.log('in neagative min time', minutesDiff);
+                                            resolve(true)
+                                        } else {
+                                            resolve(false)
+                                        }
+                                    } else if (minutesDiff2 < 0) {
+                                        if (minutesDiff < thresholdTime) {
+                                            resolve(true)
+                                        } else {
+                                            resolve(false)
+                                        }
+                                    } else {
+                                        //console.log('not in neagative min time', minutesDiff);
+                                        if (minutesDiff < thresholdTime || minutesDiff2 < thresholdTime) {
+                                            resolve(true)
+                                        } else {
+                                            resolve(false)
+                                        }
+                                    }
+                                }
+                            );
+                        } else {
+                            var SysadminConfig = Restaurant.app.models.sysadmin_config;
+                            SysadminConfig.getRestaurantClosingThresholdTime(
+                                function (err, thresholdTime) {
+                                    var close_dt = new Date(closeTime);
+
+                                    close_dt = moment(close_dt).utcOffset(cityOffset);
+
+                                    var sDate = new Date();
+                                    var cDate = sDate.getDate();
+                                    var cMonth = sDate.getMonth();
+                                    var cYear = sDate.getFullYear();
+                                    close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear);
+
+                                    var c_dt = moment(sDate).utcOffset(cityOffset).valueOf();
+
+                                    var minutesDiff = close_dt.diff(c_dt, 'minutes');
+
+                                    if(minutesDiff < thresholdTime){
+                                        resolve(true)
+                                    }else{
+                                        resolve(false)
+                                    }
+                                }
+                            );
+                        }
+                    } else {
+                        resolve(true)
+                    }
+                });
+            }catch(err){
+                resolve(err);
+            }
+        });
+    }
+
+
+    /*Restaurant.isClosingTime = function(closeTime, cityOffset){
+
+        return new Promise(function(resolve, reject){
+            try{
+
+                var SysadminConfig = Restaurant.app.models.sysadmin_config;
+                SysadminConfig.getRestaurantClosingThresholdTime(
+                    function(err,thresholdTime){
+                        console.log('thresholdTime',thresholdTime);
+
+                        var close_dt = new Date(closeTime);
+                        close_dt = moment(close_dt).utcOffset(cityOffset);
+
+                        var sDate = new Date();
+                        var cDate = sDate.getDate();
+                        var cMonth = sDate.getMonth();
+                        var cYear = sDate.getFullYear();
+                        close_dt = moment(close_dt).date(cDate).month(cMonth).year(cYear);
+                        //console.log('close_dt', close_dt.valueOf());
+                        var c_dt = moment(sDate).utcOffset(cityOffset).valueOf();
+
+                        var minutesDiff = close_dt.diff(c_dt,'minutes');
+                        if(minutesDiff < thresholdTime){
+                            resolve(true)
+                        }else{
+                            resolve(false)
+                        }
+
+                    }
+                );
+
+
+            }catch(err){
+                resolve(err);
+            }
+        });
+    }*/
+
+
+    Restaurant.createHandleInTags = function(handle, restaurantId,isHandleVal){
+        //return new Promise(function(resolve, reject){
+        //
+        //})
+
+        Tag = Restaurant.app.models.tag;
+        Tag.findOrCreate(
+            {
+                where : {
+                    is_handle :isHandleVal,
+                    tag_name : handle.toLowerCase()
+                }
+            },
+            {
+                restaurant_id : restaurantId,
+                is_handle :isHandleVal,
+                tag_name : handle.toLowerCase()
+            },
+            function(err, instance, created){
+                if(!err){
+                    if(!instance.restaurant_id){
+                        instance.updateAttribute(
+                            'restaurant_id',
+                            restaurantId,
+                            function(err, data){
+                                if(!err){
+                                    console.log('added restaurant id to tag');
+                                }
+                            }
+                        )
+                    }
+                    console.log('done', instance)
+                }else{
+                    console.log('error', err);
+                }
+            }
+        )
+    }
+
+    /* commented as tag is not useful in zapdish */
+    // Restaurant.observe('after save', function(ctx, next){
+    //     console.log('instance', ctx.instance);
+    //     if(ctx.instance != undefined){
+    //         Restaurant.createHandleInTags(ctx.instance.handle, ctx.instance.id, 1)
+    //     }
+
+    //     next();
+    // });
+
+    Restaurant.getRestaurantIdByHandle = function(handle){
+        return new Promise(function(resolve, reject){
+            Restaurant.findOne(
+                {
+                    where : {
+                        handle : handle
+                    }
+               },
+               function(err, instance){
+                   if(!err){
+                       if(instance != null){
+                           resolve(instance.id);
+                       }else{
+                           reject('restaurant handle not exist')
+                       }
+                   }else{
+                       reject(err)
+                   }
+               }
+            )
+        })
+    }
+
+
+
+    Restaurant.getRecommendedRestaurantsByConfigRadius = function(user_lat, user_long){
+
+        var SysadminConfig = Restaurant.app.models.sysadmin_config;
+        var userLocation = new loopback.GeoPoint({lat: user_lat, lng: user_long});
+
+        return new Promise(function(resolve, reject){
+            SysadminConfig.getConfigValue('recommended_restaurant_search_radius')
+                .then(function(sysConfigVal){
+                    Restaurant.find(
+                        {
+                            fields : ['id','active','del_list','location'],
+                            where: {
+                                location :{ near : userLocation, maxDistance:sysConfigVal, unit: 'kilometers' },
+                                active:true, del_list :false
+                            }
+                        },
+                        function(err, restaurants){
+                            if(!err){
+                               // console.log('ss', restaurants);
+                                var restaurantIds = [];
+                                if(restaurants.length){
+                                    for(var i = 0; i < restaurants.length; i++){
+                                        restaurantIds.push(restaurants[i].id)
+                                    }
+                                }
+                                resolve(restaurantIds);
+                            }else{
+                                console.log('re');
+                                reject(err);
+                            }
+                        }
+                    )
+                })
+                .catch(function(error){
+                    console.log('getRecommendedRestaurantsByConfigRadius error');
+                    reject(error);
+                })
+        })
+    }
+
+    /**
+     * verifyOtpForSignUp 
+     * this is second step of chef signup 
+     */
+    Restaurant.verifyOtpForSignUp = function(userToken, mobile_no, country_id, cb){
+
+        Restaurant.app.models.otp_model.verifyOtp(userToken, mobile_no, 3)
+        .then(function(valie){
+            delete Restaurant.validations.email;
+           
+            Restaurant.findOrCreate(
+                {
+                    where : {
+                        mobile_no : mobile_no,
+                        country_id : country_id
+                    }
+                },
+                {
+                    mobile_no : mobile_no,
+                    country_id : country_id,
+                    password : userToken,
+                    tmp_pass: userToken,
+                    referral_code: crypto.randomBytes(3).toString('hex'),
+                    active : true,
+                    restaurant_type: 1,
+                },
+                function(err, restaurantData, created){
+                    if (!err) {
+                        if (created || restaurantData.email == null) {
+                            Restaurant.login({
+                                mobile_no: mobile_no,
+                                password: restaurantData.tmp_pass,
+                                ttl : 7776000
+                            }, function(err, loggedinUserData){
+                                if(!err){
+                                    var message = 'OTP is verified.';
+                                    var error = {};
+                                    cb(null, true, loggedinUserData, message, error);
+                                    //this will add a default review and rating for a chef on registration
+                                    Restaurant.app.models.restaurant_user_review.addDefaultRestaurantReview(restaurantData.id)
+                                        .then(function(defaultReview){
+                                            console.log('added defailt review');
+                                        })
+                                        .catch(function(err){
+                                            console.log('err while adding default review', err)
+                                        });
+                                }else{
+                                    console.log('err toek generation', err)
+                                    var message = 'Could not generate access token';
+                                    var error = 'Could not create temporary session';
+                                    cb(null, fal, loggedinUserData, message, error);
+                                }
+                            });
+                            
+                        } else {
+                            var err = new Error('You are already registered.');
+                            cb(err);
+                        }
+                    } else {
+                        cb(err);
+                    }
+                }
+            );
+        })
+        .catch(function(err){
+            var message = 'Invalid OTP.';
+            error = {mobile_no: ["Invalid OTP"]};
+            cb(null, false, {}, message, error);
+        });
+    };
+
+
+    //send otp api
+    Restaurant.sendOtp = function(mobile_no, cb) {   
+
+        Restaurant.app.models.otp_model.setOtp(mobile_no)
+        .then(function(data){           
+            return Restaurant.app.models.otp_model.sendOtpSms(data.field, data.otp)
+        })
+        .then(function(data){
+            cb(null, true, 'OTP has been sent to your mobile.');
+        })
+        .catch(function(reason){
+            cb(null, false, 'Sorry, error occurred.');
+        })
+    };
+
+
+    Restaurant.getBasicDetails = function(restaurant_id) {
+        return new Promise(function(resolve, reject){
+            Restaurant.findById(
+                restaurant_id,
+                {
+                    fields : ['id','restaurant_name','address','contact_no', 'location','country_id'],
+                    include: 'country'
+                },
+                function(err, restaurantData){
+                    if (err){
+                        reject(err);
+                    } else {
+                        resolve(restaurantData)
+                    }
+                }
+            )
+        })
+    }
+   
+    Restaurant.getRestaurantMenu = function(restaurant_id, cb) {
+            Promise.all([
+                Restaurant.getBasicDetails(restaurant_id),
+                Restaurant.app.models.Product.getSpecials(restaurant_id),
+                Restaurant.app.models.product_category.getProductsByCategory(restaurant_id, 1),
+            ]).then(function(data) {
+                var categories = JSON.parse(JSON.stringify(data));
+                var resp  = categories[0] ? categories[0] : null;
+                if (resp) {
+                    var menu_categories = [];
+                    categories[2].filter(function(dataObject, index){
+                        if (dataObject.slug == 'specials') {
+                            dataObject.products = categories[1];
+                        }
+                        if (dataObject.products.length) {
+                            menu_categories.push(dataObject);
+                        }
+                    })
+                    resp.menu_categories = menu_categories;
+                    cb(null, resp);
+                } else{
+                    var err = new Error('Invalid restaurant id');
+                    cb(err);
+                }
+            })
+            .catch(function(reason) {
+                cb(reason);
+            })
+    }
+
+/******************************************************************************************************************************************************/
+
+Restaurant.getSpecialProduct = function(restaurant_id){
+    console.log("id", restaurant_id);
+    return new Promise(function(resolve, reject){
+        Restaurant.findById(
+            restaurant_id,
+            {
+                fields : ['id','restaurant_name','address','contact_no', 'location','country_id'],
+                include: 'country'
+            },
+            function(err, data){
+                console.log("Data111", data);
+                if (err){
+                    reject(err);
+                } else {
+                    resolve(data)
+                }
+            }
+        )
+    }).catch(function(reason) {
+        cb(reason);
+    })
+}
+
+
+
+/**********************************************************************************************************************************************************************************************************/
+
+
+
+
+
+    /**
+     * get active restaurant count
+     * used in angular admin dashboard page
+     */
+    Restaurant.getActiveRestaurantCount = function() {
+        return new Promise(function(resolve, reject){
+            Restaurant.count({
+                where: {
+                    active: true,
+                    del_list: false
+                }
+            }, function(err, count) {
+                if(err){
+                    reject(err);
+                } else {
+                    resolve(count)
+                }
+            })
+        })
+    }
+
+
+
+    /**
+     * get pending kyc restaurant count
+     * used in angular admin dashboard page
+     */
+    Restaurant.getPendingKYCRestaurantCount = function() {
+        return new Promise(function(resolve, reject){
+            Restaurant.count({
+                where: {
+                    active: true,
+                    del_list: false,
+                    kyc_completed : true
+                }
+            }, function(err, count) {
+                if(err){
+                    reject(err);
+                } else {
+                    resolve(count)
+                }
+            })
+        })
+    }
+
+    /**
+     * getAdminDashboardData
+     * get admin dabashboar data
+     */
+    Restaurant.getAdminDashboardData = function(cb) {
+        
+        Promise.all([
+            Restaurant.getActiveRestaurantCount(),
+            Restaurant.getPendingKYCRestaurantCount(),
+        ]).then(function(data) {
+            cb(null, {
+                restaurant_count: data[0],
+                pending_kyc: data[1]
+            })
+        })
+        .catch(function(reason){
+            cb(reason);
+        })
+    }
+
+
+    /**
+     * getIntroductionVideo 
+     * this is used on chef app side
+     * 
+     */
+    Restaurant.getIntroductionVideo = function(restaurant_id, cb) {
+        Restaurant.findById(
+            restaurant_id,
+            {
+                fields: ['id', 'chef_video_image', 'chef_video']
+            },
+            function(err, data){
+                if(err){
+                    cb(err)
+                } else {
+                    var resp = {
+                        data: data,
+                        baseUrl : AwsBuckets.s3bucket_url+'restaurant_images/'
+                    }
+                    cb(null, resp);
+                }
+            })
+    }
+
+    Restaurant.getRestaurantData = function(restaurant_id, fields) {
+        return new Promise(function(resolve, reject){
+            Restaurant.findById(
+                restaurant_id,
+                {
+                    fields : fields,
+                    include: 'country'
+                },
+                function(err, restaurantData){
+                    if (err){
+                        reject(err);
+                    } else {
+                        resolve(restaurantData)
+                    }
+                }
+            )
+        })
+    }
+
+
+    Restaurant.getRestauranKycDocs = function(restaurant_id, cb){
+        
+        Promise.all([
+            Restaurant.getRestaurantData(restaurant_id, ['restaurant_name','email', 'profile_image','restaurant_image','contact_no','address','mobile_no','kyc_completed']),
+            Restaurant.app.models.restaurant_kyc.getKycDetails(restaurant_id),
+            Restaurant.app.models.restaurant_kitchen_image.getKitechImages(restaurant_id)
+        ]).then(function(data){
+            var resp = {
+                restauant_data: data[0],
+                resident_proof: data[1],
+                kitchen_images: data[2],
+                profile_pic_baseUrl: AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant,
+                resident_proof_baseUrl: AwsBuckets.s3bucket_url+ AwsBuckets.containers.restaurant_kyc+'/',
+                kitchen_images_baseUrl: AwsBuckets.s3bucket_url+AwsBuckets.containers.restaurant_kitchen_images+'/'
+            }
+            cb(null, resp);
+        })
+        .catch(function(err){
+            cb(err);
+        })
+    }
+
+    Restaurant.completeProfile = function(data, cb) {
+        cb(null, data);
+    }
+
+    Restaurant.remoteMethod('isKycComplete', {
+        accepts: [
+            { arg: 'restaurantId', type: 'number', required: true},
+        ],
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: { verb: 'get', path:'/kyc-complete/:restaurantId'}
+    })
+
+
+    Restaurant.remoteMethod('getRestauranKycDocs',{
+        accepts: [
+            { arg: 'restaurant_id', type: 'number', required: true},
+        ],
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: { verb: 'get', path:'/get-kyc-docs/:restaurant_id'}
+    });
+
+
+    
+    Restaurant.remoteMethod('getIntroductionVideo', {
+        accepts: [
+            { arg: 'restaurant_id', type: 'number', required: true},
+        ],
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: { verb:'get'}
+    })
+
+    Restaurant.remoteMethod('getAdminDashboardData', {
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: { verb:'get'}
+    })
+
+    Restaurant.remoteMethod(
+        'resetRestaurantPassword',{
+            accepts: {arg: 'data', type: 'ResetPassword', http: {source: 'body'}, root: true},
+            returns: {arg: 'data', type: 'object','default':{"token":"string","new_password":"string", "confirm_password":"string"}, http: {source: 'body'}, root: true}
+        }
+    );
+
+
+    Restaurant.remoteMethod(
+        'checkIn',{
+            accepts : [
+                {arg : 'restaurant_id' , type :'string', required : true}
+            ],
+            returns : {arg : 'data',type : 'object', root : true}
+        }
+    );
+
+
+
+
+    Restaurant.remoteMethod(
+        'getRecommendedRestaurants',{
+            accepts:[
+                {arg: 'lat', type: 'string', required : true},
+                {arg: 'lng', type: 'string', required : true},
+                {arg: 'not_in_restaurant_id', type: 'number', required : true},
+                {arg: 'product_name', type: 'string', required : true}
+            ],
+            returns: {arg: 'data', type: 'array', root: true}
+        }
+    );
+
+
+    Restaurant.remoteMethod(
+        'createTrailRestaurant',{
+            accepts: {arg: 'data', type: 'trail_restaurant', http: {source: 'body'}, root: true},
+            returns: {arg: 'data', type: 'object', root: true}
+        }
+    );
+
+    Restaurant.remoteMethod(
+        'verifyOtp', {
+            accepts:[
+                {arg: 'email', type: 'string', required : true},
+                {arg: 'otpToken', type: 'string', required : true}
+            ],
+            returns: {arg: 'data', type: 'object', root: true}
+        }
+    );
+
+    Restaurant.remoteMethod('generateOtp',{
+        accepts:[
+            {arg: 'email', type: 'string', required : true}
+        ],
+        returns: {arg: 'data', type: 'object', root: true}
+    });
+
+
+
+    Restaurant.remoteMethod(
+        'verifyAndChangePassword',
+        {
+            accepts: {arg: 'data', type: 'ChangePassword', http: {source: 'body'}, root: true},
+            returns: {arg: 'data', type: 'object','default':{"old_password": "string", "new_password":"string", "confirm_password":"string"}, http: {source: 'body'}, root: true}
+        }
+    );
+
+    Restaurant.remoteMethod('orderPage',{
+        accepts:[
+            {arg: 'id', type: 'number', required : true}
+        ],
+        returns: {arg: 'data', type: 'object', root: true},
+        http: { verb: 'get','path':'/order-page/:id'}
+    });
+
+
+
+    Restaurant.remoteMethod(
+        'getZomatoRestaurantList',{
+            accepts: [
+                {arg : 'location', type:'string', required:true},
+                {arg : 'search_text', type:'string', required: true},
+                {arg : 'page', type:'number', required: true},
+                {arg : 'numPerPage', type:'number', required: true},
+            ],
+            returns: {arg: 'data', type: 'object', root: true},
+            http: { verb: 'get','path':'/get-zomato-restaurants'}
+        }
+    );
+
+
+
+
+    Restaurant.remoteMethod(
+        'getZomatoLocations',
+        {
+            accepts: [
+                {arg:'q', type:'string', required: true}
+            ],
+            returns: {arg: 'data', type: 'object', root: true},
+            http: { verb: 'get','path':'/get-zomato-location'}
+        }
+    );
+
+
+    Restaurant.remoteMethod('getDetails',{
+            accepts:[
+                {arg: 'id', type: 'number', required : true},
+                {arg: 'product_id', type: 'number', required : true},
+                {arg: 'lat', type: 'number', required : true},
+                {arg: 'lng', type: 'number', required : true}
+            ],
+            returns: {arg: 'data', type: 'object', root: true},
+            http: { verb: 'get','path':'/get-details/:id/:product_id/:lat/:lng'}
+        }
+    );
+
+
+    Restaurant.remoteMethod('overviewPage',{
+            accepts: {arg: 'restaurant_id', type: 'number', required : true},
+            returns: {arg: 'data', type: 'object', root: true},
+            http: { verb: 'get'}
+        }
+    );
+
+    Restaurant.remoteMethod('uploadVideo',{
+            description: 'Uploads a 2 min video file',
+            accepts: [
+                { arg: 'ctx', type: 'object', http: { source:'context' } },
+                { arg: 'options', type: 'object', http:{ source: 'query'}}
+            ],
+            returns: { arg: 'data', type: 'object', 'root': true},
+            http: {verb: 'post'}
+        }
+    );
+
+    Restaurant.remoteMethod('upload',{
+        description: 'Uploads a file',
+        accepts: [
+            { arg: 'ctx', type: 'object', http: { source:'context' } },
+            { arg: 'options', type: 'object', http:{ source: 'query'}}
+        ],
+        returns: { arg: 'data', type: 'object', 'root': true},
+        http: {verb: 'post'}
+    });
+
+
+    Restaurant.remoteMethod('uploadKycProfileImage',{
+        description: 'Upload profile image file',
+        accepts: [
+            { arg: 'ctx', type: 'object', http: { source:'context' } },
+            { arg: 'options', type: 'object', http:{ source: 'query'}}
+        ],
+        returns: { arg: 'data', type: 'object', 'root': true},
+        http: {verb: 'post'}
+    });
+
+
+    Restaurant.remoteMethod('restaurantNearBy',{
+        accepts: [
+            {arg: 'query', type: 'string', required : false},
+            {arg: 'user_lat', type: 'number', required : true},
+            {arg: 'user_lng', type: 'number', required : true},
+            {arg: 'page', type: 'number', required : true},
+            {arg: 'limit', type: 'number', required : true}
+        ],
+        returns: {arg: 'data', type: 'object', root: true},
+        http: { verb: 'get'}
+    });
+
+
+    Restaurant.remoteMethod('updateKycComplete', {
+        accepts: [
+            {arg: 'restaurant_id', type: 'number', required : true},
+        ],
+        returns: {arg: 'data', type: 'object', root: true},
+        http: { verb: 'post', path: '/update-kyc-status'}
+    })
+
+    Restaurant.remoteMethod('restaurantByText',{
+            accepts: [
+                {arg: 'q', type: 'string'},
+                {arg: 'lat', type: 'string'},
+                {arg: 'lng', type: 'string'}
+            ],
+            returns: {arg: 'data', type: 'array', root: true},
+            http: { verb: 'get'}
+        }
+    );
+
+
+
+
+
+    Restaurant.remoteMethod('isUsernameAvailable',{
+            accepts: {arg: 'username', type: 'string', 'required':true},
+            returns: {arg: 'isAvailable', type: 'boolean' },
+            http: { verb: 'get'}
+        }
+    );
+
+    Restaurant.remoteMethod('isEmailAvailable',{
+            accepts: {arg: 'email', type: 'string', 'required':true},
+            returns: {arg: 'isAvailable', type: 'boolean'},
+            http: { verb: 'get'}
+        }
+    );
+
+    Restaurant.remoteMethod('isHandleAvailable',{
+            accepts: {arg: 'handle', type: 'string', 'required':true},
+            returns: {arg: 'isAvailable', type: 'boolean'},
+            http: { verb: 'get'}
+        }
+    );
+
+
+    Restaurant.remoteMethod('testStripe',{
+            returns: {arg: 'customer', type: 'object'},
+            http: { verb: 'get'}
+        }
+    );
+
+    Restaurant.remoteMethod('sendOtp', {
+            accepts: [
+                {arg: 'mobile_no', type: 'string', description: 'country_code+mobile no e.g. +91845xxxxx47'}
+            ],
+            returns: [
+                {arg: 'status', type: 'boolean'},
+                {arg: 'message', type: 'string'}
+            ],
+            http: {verb: 'post', status: 200, errorStatus: 400}
+
+        }
+    );
+
+
+    Restaurant.remoteMethod('verifyOtpForSignUp', {
+        accepts: [
+            {arg: 'userToken', type: 'string'},
+            {arg: 'mobile_no', type: 'string', description: 'country_code+mobile no e.g. +91845xxxxx47'},
+            {arg: 'country_id', type: 'number'}
+        ],
+        returns: [
+            {arg: 'status', type: 'boolean'},
+            {arg: 'data', type: 'object'},
+            {arg: 'message', type: 'string'},
+            {arg: 'error', type: 'object'}
+        ],
+        http: {verb: 'post', status: 200, errorStatus: 400}
+
+    });
+
+
+    Restaurant.remoteMethod('getRestaurantMenu', {
+        accepts: [
+            {arg: 'restaurant_id', type: 'number', required: true}
+        ],
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: {verb: 'get', path: '/menu/:restaurant_id', status: 200, errorStatus: 400}
+    });
+
+    Restaurant.remoteMethod('getSpecialProduct', {
+        accepts: [
+            {arg: 'restaurant_id', type: 'number', required: true}
+        ],
+        returns: [
+            {arg: 'data', type: 'object', root: true}
+        ],
+        http: {verb: 'get', path: '/getSpecialProduct/:restaurant_id', status: 200, errorStatus: 400}
+    });
+};
+

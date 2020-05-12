@@ -1,0 +1,2352 @@
+{
+	"info": {
+		"_postman_id": "e7acef8c-cf24-40e7-bd03-11f028716d19",
+		"name": "ZapDish",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Chef",
+			"item": [
+				{
+					"name": "chef login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\"email\": \"prabhudev@yopmail.com\",\n\"password\":\"12345\"\n}\n"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/login?include=user",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"login"
+							],
+							"query": [
+								{
+									"key": "include",
+									"value": "user"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot-Password.1.generate otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \n \"email\": \"rajk12@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/generateOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"generateOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot-Password.2.verifyotp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"email\": \"rajk12@yopmail.com\",\n \"otpToken\": 1234\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/verifyOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"verifyOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Signup.1.send otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobile_no\": \"+919892687375\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/sendOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"sendOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Signup.2.verifyOtpForSignup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobile_no\": \"+919892687375\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/sendOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"sendOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update-profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"location\": {\n    \"lat\": 18.5796039,\n    \"lng\": 73.7364939\n  }\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/1",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get-detaiils",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"token\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"email\": \"sandip-restuarant@yopmail.com\",\n \"password\":\"sandip-restuarant\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/4",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"4"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload-restaurant-image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurants/upload",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"upload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload-profile-image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/x-www-form-urlencoded"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurants/uploadKycProfileImage",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"uploadKycProfileImage"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "uploadVideo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurants/uploadVideo",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"uploadVideo"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getProductAndCategoriesForChef",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url}}product_categories/getProductCategoriesAndItsProductList?restaurantId=1",
+							"host": [
+								"{{url}}product_categories"
+							],
+							"path": [
+								"getProductCategoriesAndItsProductList"
+							],
+							"query": [
+								{
+									"key": "restaurantId",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getIntroVideo",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}restaurants/getIntroductionVideo?restaurant_id={{restaurant_id}}",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"getIntroductionVideo"
+							],
+							"query": [
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "cooking videos",
+			"item": [
+				{
+					"name": "upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/Users/neosoft/Downloads/demo.mp4"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								},
+								{
+									"key": "title",
+									"value": "demo",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}cooking_videos/upload",
+							"host": [
+								"{{url}}cooking_videos"
+							],
+							"path": [
+								"upload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get-all-videos",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{url}}cooking_videos/getVideos?page=1&limit=10&restaurant_id={{restaurant_id}}",
+							"host": [
+								"{{url}}cooking_videos"
+							],
+							"path": [
+								"getVideos"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "restaurant_kyc",
+			"item": [
+				{
+					"name": "updatekyc",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "resident_proof_name",
+									"value": "Retion card",
+									"type": "text"
+								},
+								{
+									"key": "resident_proof_file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "kitchen_area_file1",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "kitchen_area_file2",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "kitchen_area_file3",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "personal_statement",
+									"value": "I am doing well new",
+									"type": "text",
+									"disabled": true
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kycs/complete-kyc",
+							"host": [
+								"{{url}}restaurant_kycs"
+							],
+							"path": [
+								"complete-kyc"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "statement",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"personal_statement\": \"hello\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kycs/statement",
+							"host": [
+								"{{url}}restaurant_kycs"
+							],
+							"path": [
+								"statement"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "residency-proof",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "resident_proof_name",
+									"value": "Retion card",
+									"type": "text"
+								},
+								{
+									"key": "resident_proof_file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kycs/residency-proof",
+							"host": [
+								"{{url}}restaurant_kycs"
+							],
+							"path": [
+								"residency-proof"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get-docs",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kycs/get-docs",
+							"host": [
+								"{{url}}restaurant_kycs"
+							],
+							"path": [
+								"get-docs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "all kitchen images",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kitchen_images/images",
+							"host": [
+								"{{url}}restaurant_kitchen_images"
+							],
+							"path": [
+								"images"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload kitchen image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "kitchen_image",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "{{restaurant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kitchen_images/upload",
+							"host": [
+								"{{url}}restaurant_kitchen_images"
+							],
+							"path": [
+								"upload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "remove kitchen image",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"image_id\": 8\n}"
+						},
+						"url": {
+							"raw": "{{url}}restaurant_kitchen_images/removeImage/:id",
+							"host": [
+								"{{url}}restaurant_kitchen_images"
+							],
+							"path": [
+								"removeImage",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "11"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "KYC_docs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "product",
+			"item": [
+				{
+					"name": "searchProduct",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "90",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}products/search?q=gri",
+							"host": [
+								"{{url}}products"
+							],
+							"path": [
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "gri"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getCategoryWiseProducts",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "90",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}product_categories/getProductCategoriesAndItsProductList",
+							"host": [
+								"{{url}}product_categories"
+							],
+							"path": [
+								"getProductCategoriesAndItsProductList"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "productCategoryList",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}product_categories/productCategoryList",
+							"host": [
+								"{{url}}product_categories"
+							],
+							"path": [
+								"productCategoryList"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getProductDetails",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}products/getProductDetails?productId=2",
+							"host": [
+								"{{url}}products"
+							],
+							"path": [
+								"getProductDetails"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getProductImages",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}product_images/getProductImages?product_id=4",
+							"host": [
+								"{{url}}product_images"
+							],
+							"path": [
+								"getProductImages"
+							],
+							"query": [
+								{
+									"key": "product_id",
+									"value": "4"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "deleteProductImage",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}product_images/:id",
+							"host": [
+								"{{url}}product_images"
+							],
+							"path": [
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "5"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/x-www-form-urlencoded"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"value": "",
+									"type": "file"
+								},
+								{
+									"key": "restaurant_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "product_id",
+									"value": "4",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{url}}product_images/upload",
+							"host": [
+								"{{url}}product_images"
+							],
+							"path": [
+								"upload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update-product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": 34,\t\n  \"product_name\": \"one Sandwich 9\",\n  \"description\": \"ingreedient : Veg, cheese, onion, etc\",\n  \"product_category_id\": 1,\n  \"cuisine_id\": 1,\n  \"restaurant_id\": 1,\n  \"spiciness\": 0,\n  \"product_sizes\": [\n  \t{\n  \t  \n      \"price\": 100,\n      \"size\": \"Regular\"\n    },\n    {\n    \t\n    \t\"price\": 120,\n    \t\"size\": \"Large\"\n    },\n     {\n    \t\"price\": 120,\n    \t\"size\": \"Small\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{url}}products/updateProductAndSubProduct",
+							"host": [
+								"{{url}}products"
+							],
+							"path": [
+								"updateProductAndSubProduct"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add-product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \n  \"product_name\": \"one Sandwich 10\",\n  \"description\": \"ingreedient : Veg, cheese, onion, etc\",\n  \"product_category_id\": 1,\n  \"cuisine_id\": 1,\n  \"restaurant_id\": 1,\n  \"spiciness\": 0,\n  \"product_sizes\": [\n  \t{\n  \t  \n      \"price\": 100,\n      \"size\": \"Regular\"\n    },\n    {\n    \t\n    \t\"price\": 120,\n    \t\"size\": \"Large\"\n    },\n     {\n    \t\"price\": 120,\n    \t\"size\": \"Small\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{url}}products/addNewProductAndSubProduct",
+							"host": [
+								"{{url}}products"
+							],
+							"path": [
+								"addNewProductAndSubProduct"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Soft delete product size",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "appuser",
+			"item": [
+				{
+					"name": "login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\"password\" : \"data\",\n\"email\" : \"raj@123.com\"\n}\n"
+						},
+						"url": {
+							"raw": "{{url}}app_users/login",
+							"host": [
+								"{{url}}app_users"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sendOtp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobile_no\":\"+918551020064\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/sendOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								"sendOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "followUnfollowRestaurant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\n  \"restaurant_id\": 1,\n  \"app_user_id\": 1,\n  \"status\": 1\n  \n  \n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurant_following_users/followUnfollowRestaurant",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurant_following_users",
+								"followUnfollowRestaurant"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "signup-1.sendOtpForSignUp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobile_no\":\"+919892687375\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/sendOtpForSignUp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								"sendOtpForSignUp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "signup-2.verifyOtp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobile_no\":\"+919892687375\",\n \"userToken\": 1504,\n \"country_id\": 1\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/verifyOtp",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								"verifyOtp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "signup-3-updateProfile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"country_id\": 1,\n    \"mobile_no\": \"+919892687375\",\n    \"password\":\"sandip\",\n    \"first_name\": null,\n    \"full_name\": null,\n    \"last_name\": null,\n    \"email\": \"sandip@yopmail.com\",\n    \"user_icon\": null,\n    \"last_signed_in\": null,\n    \"handle\": null,\n    \"active\": true,\n    \"total_post\": 0,\n    \"following_restaurants_count\": null,\n    \"device_type\": null,\n    \"device_token\": null,\n    \"deleted_info\": null,\n    \"age_group\": null,\n    \"gender\": null\n\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/:id",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "resetPassword",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\"password\": \"sandipg123\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/:id",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getAccessTokenByMobileNo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"user_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"mobileNo\":\"+918551020064\",\n \"otpToken\": 1234\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_users/getAccessTokenByMobileNo",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_users",
+								"getAccessTokenByMobileNo"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "restaurantNearBy",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"password\": \"sandip\",\n \"email\": \"sandipapp@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/restaurantNearBy?user_lng=73.7364939&page=1&limit=10&user_lat=18.5796039&query=",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"restaurantNearBy"
+							],
+							"query": [
+								{
+									"key": "user_lng",
+									"value": "73.7364939"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "user_lat",
+									"value": "18.5796039"
+								},
+								{
+									"key": "query",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getDetails",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{appusertoken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"password\": \"sandip\",\n \"email\": \"sandipapp@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}restaurants/get-details/:id/:product_id/:lat/:lng?",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"get-details",
+								":id",
+								":product_id",
+								":lat",
+								":lng"
+							],
+							"query": [
+								{
+									"key": "access_token",
+									"value": "vl4vtdV5izslHO2ayuMdJwIztrSYTjw3B5JjsZhxKtF4pbkDwodoX0fKDbiFcJCY",
+									"disabled": true
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								},
+								{
+									"key": "product_id",
+									"value": "0"
+								},
+								{
+									"key": "lat",
+									"value": "18.5796039"
+								},
+								{
+									"key": "lng",
+									"value": "73.7364939"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "overviewPage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{appusertoken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"password\": \"sandip\",\n \"email\": \"sandipapp@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/overviewPage?restaurant_id=1",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"overviewPage"
+							],
+							"query": [
+								{
+									"key": "access_token",
+									"value": "vl4vtdV5izslHO2ayuMdJwIztrSYTjw3B5JjsZhxKtF4pbkDwodoX0fKDbiFcJCY",
+									"disabled": true
+								},
+								{
+									"key": "restaurant_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "orderpage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"password\": \"sandip\",\n \"email\": \"sandipapp@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}restaurants/order-page/:id?",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"order-page",
+								":id"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "vl4vtdV5izslHO2ayuMdJwIztrSYTjw3B5JjsZhxKtF4pbkDwodoX0fKDbiFcJCY",
+									"disabled": true
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getOrderDetails",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13d94bc9-0614-45c1-bd99-a8047ec32f6a",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"appusertoken\", jsonData.id);",
+									"    pm.environment.set(\"restaurant_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"password\": \"sandip\",\n \"email\": \"sandipapp@yopmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}app_user_orders/getOrderDetailsByOrderId?orderId=4",
+							"host": [
+								"{{url}}app_user_orders"
+							],
+							"path": [
+								"getOrderDetailsByOrderId"
+							],
+							"query": [
+								{
+									"key": "orderId",
+									"value": "4"
+								},
+								{
+									"key": "access_token",
+									"value": "vl4vtdV5izslHO2ayuMdJwIztrSYTjw3B5JjsZhxKtF4pbkDwodoX0fKDbiFcJCY",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getMenu",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{appusertoken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{url}}/restaurants/menu/:restaurant_id",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"restaurants",
+								"menu",
+								":restaurant_id"
+							],
+							"variable": [
+								{
+									"key": "restaurant_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getSpecials",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{appusertoken}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}/products/special-products?restaurant_id=1",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"products",
+								"special-products"
+							],
+							"query": [
+								{
+									"key": "restaurant_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "orders",
+			"item": [
+				{
+					"name": "place order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{appusertoken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"app_user_id\": 1,\n  \"restaurant_id\": 1,\n  \"total_price\": 100,\n  \"dine_in\": 2,\n  \"payment_status\": \"P\",\n  \"order_status_note\": \"make it fast\",\n  \"tax_amount\": 0,\n  \"currency_code\": \"INR\",\n  \"delivery_address\": \"wakad pune\",\n  \"IHF\": 0,\n  \"payment_type\": 0,\n  \"recon\": 0,\n  \"delivery_charges\": 0,\n  \"note\": \"string\",\n  \"expected_delivery_time\": 0,\n  \"set_status_automatic\": false,\n  \"payment_detail\": \"cod payment\",\n  \"order_item\": [\n   {\n    \"item_price\": \"100\",\n     \"item_size\": \"Regular\",\n     \"product_id\" : 9,\n     \"no_of_items\": 1,\n     \"total_price\": 100,\n     \"gst_tax\": 0,   \n     \"wet_tax\": 0,\n     \"spiciness_index\":2\n   }\n ]\n}"
+						},
+						"url": {
+							"raw": "{{url}}/app_user_orders/place-order",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_user_orders",
+								"place-order"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "restaurantsTodayOrders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url}}/app_user_orders/restaurantsTodayOrders",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"app_user_orders",
+								"restaurantsTodayOrders"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "admin",
+			"item": [
+				{
+					"name": "admin login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"admintoken\", jsonData.id);",
+									"    pm.environment.set(\"admin_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"username\": \"admin\",\n \"password\":\"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{url}}admins/login",
+							"host": [
+								"{{url}}admins"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "resetRestaurantPassword",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "086a426e-3f02-4ed6-9778-3f43723be429",
+								"exec": [
+									"",
+									"pm.test(\"setToken\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"admintoken\", jsonData.id);",
+									"    pm.environment.set(\"admin_id\", jsonData.userId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{admintoken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n \"confirm_password\": \"sandip\",\n \"password\":\"sandip-restuarant\",\n \"id\": 1\n}"
+						},
+						"url": {
+							"raw": "{{url}}restaurants/resetRestaurantPassword",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"resetRestaurantPassword"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getAdminDashboardData",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{admintoken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url}}restaurants/getAdminDashboardData",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"getAdminDashboardData"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get-kyc-doc",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{admintoken}}"
+							}
+						],
+						"url": {
+							"raw": "{{url}}restaurants/get-kyc-docs/:restaurant_id",
+							"host": [
+								"{{url}}restaurants"
+							],
+							"path": [
+								"get-kyc-docs",
+								":restaurant_id"
+							],
+							"variable": [
+								{
+									"key": "restaurant_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

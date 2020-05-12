@@ -1,0 +1,10 @@
+Todays Workdone:
+
+
+. Start with new app to understand loopback.
+. Understanding following topics:
+  . How to create datasource
+  . creating model
+  . How to make relation between model
+  . How to define access control, use of access control
+  . Defining remote hook

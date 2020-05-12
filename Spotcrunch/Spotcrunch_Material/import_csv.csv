@@ -1,0 +1,2 @@
+product_name,description,size,price,product_category_id,cuisine_id,dine_in,available,spiciness,tags
+Upit,Upit,Medium,100,16,1,2,0,2,"test, test1"

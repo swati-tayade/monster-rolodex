@@ -1,0 +1,9 @@
+Todays Workdone:
+
+. Working on how to configure aws sns, and send otp
+. Reffering following links:
+  - https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/sns-examples.html
+  - https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/SNS.html
+  - https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+  - https://www.npmjs.com/package/speakeasy
+  - https://stackabuse.com/publishing-and-subscribing-to-aws-sns-messages-with-node-js/

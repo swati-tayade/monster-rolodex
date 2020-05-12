@@ -1,0 +1,8 @@
+Todays Workdone:
+
+. Understanding how to set authentication in loopback.
+. Understand concept of ACL (Access Control List).
+. Trying the same for app-user & restaurant model by CLI.
+. Try to get data of API(getRestaurantList) with & without applying ACL.
+. Its working but still not understanding where to set token for every API in code itself.
+. Fetching static accessToken from postman and get it on console.

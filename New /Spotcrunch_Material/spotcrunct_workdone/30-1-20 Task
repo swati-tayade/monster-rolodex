@@ -1,0 +1,7 @@
+Todays Workdone:
+
+
+. Instead of checking token validation for every method, write one method in auth.js & check for authentication in server.js
+. Allow getSpecialProduct API access to guest user.
+ 
+

@@ -1,0 +1,88 @@
+<!-- <div class="container">
+  <div class="row">
+    <div class="form-bg">
+      <form #regForm='ngForm' (ngSubmit)="Register(regForm)">
+        <h2 class="text-center">Registration Form</h2>
+        <div class="form-group">
+          <input type="text" class="form-control" name="firstName" ngModel #firstname='ngModel' required />
+          <span class="help=bpx" *ngIf="firstname.touched && !firstname.valid">Plesae enetr first name.</span>
+        </div>
+        <div class="form-group">
+          <input type="text" class="form-control" name="lastName" ngModel required />
+        </div>
+        <div class="form-group">
+          <input type="email" class="form-control" name="email" email ngModel #email='ngModel' required />
+          <span class="help=bpx" *ngIf="email.touched && !email.valid">Plesae enetr valid email.</span>
+        </div>
+        <div class="align-center">
+          <button type="submit" class="byn btn-primary" id="register" [disabled]="!regForm.valid">Register</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+</div> -->
+
+<!-- <div class="container">
+  <div class="row">
+    <div class="form-bg">
+      <form [formGroup]='signupForm' (ngSubmit)="PostData(signupForm)">
+        <h2 class="text-center">Registration Form</h2>
+        <div class="form-group">
+          <input type="text" formControlName='firstName' required />
+          <!-- <span *ngFor="signupForm.controls['firstName'].hasError('required')">enter valid firstName.</span> -->
+<!-- </div>
+        <div class="form-group">
+          <input type="text" formControlName="lastName" required />
+        </div>
+        <div class="form-group">
+          <input type="email" formControlName='email' required />
+          <!-- <span *ngFor="signupForm.control['email'].haserror(required)">enter valid email.</span> -->
+<!-- </div>
+        <div class="align-center">
+          <button type="submit" class="byn btn-primary" id="register" [disabled]="!signupForm.valid">Register</button>
+          <button class="byn btn-primary" (click)="resetForm()"> Reset</button>
+          <button class="byn btn-primary" (click)="fillData()">Fill</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+</div> -->
+
+<!-- <a [routerLink]="['/person']">Person</a><br> -->
+
+<!-- <form [formGroup]='form' (ngSubmit)="submitArray()">
+  <h2 class="text-center">Registration Form</h2>
+  <div formArrayName="contactNo">
+    <div *ngFor="let contact of form.controls.contactNo.controls; index as i">
+      <input [formControlName]="i" />
+
+    </div>
+
+  </div>
+
+  <div class="align-center">
+    <button type="submit" class="byn btn-primary" id="register">Register</button>
+
+  </div>
+</form>
+<button class="byn btn-primary" (click)="resetForm()"> Preset</button>
+<button class="byn btn-primary" (click)="addContact()"> Add Contact</button> -->
+
+
+<!-- <table border=" 1">
+
+            <tr *ngFor="let e of emp">
+              <td>{{e.id}}</td>
+              <td>{{e.name | myPipe:e.gender}}</td>
+              <td>{{e.gender}}</td>
+            </tr>
+            </table> -->
+
+
+<h1>App works..</h1>
+<a routerLink='company' routerLinkActive='active'>company</a>
+<router-outlet></router-outlet>

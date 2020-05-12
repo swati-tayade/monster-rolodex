@@ -1,0 +1,5 @@
+Todays Workdone:
+
+
+. Allow access for 2 order API's for guest user. i.e.-orderPage & getOrderDetails.
+. Adding decryption for accessToken.Still working on it. 

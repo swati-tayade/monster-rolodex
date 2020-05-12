@@ -1,0 +1,10 @@
+Todays workdone:
+
+. Runnung application without error in morning
+. reinstall Mysql & Workbench bcz of some issue
+. getting collections and test it on postman with stagingDB
+. Making DB connection locally
+. Connect application with local DB
+. Test again all API with local data, working fine.
+. Understanding structure of middleware in loopback & try to debug the backend code.
+

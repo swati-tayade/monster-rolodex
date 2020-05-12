@@ -1,0 +1,10 @@
+Todays workdone:
+
+
+. Checking all API's which will b use by guest & set static accessToken to it.
+. List of API where we have to add static accessToken:
+	- restaurantNearBy
+	- getDetails
+	- overviewPage
+	- getRestaurantMenu
+. Remove autherization & add new accessToken n check for all API's(i.e.all 4)

@@ -1,0 +1,12 @@
+<h1>Hello</h1>
+<!-- <ul>
+  <li *ngFor="let book of softBook | async">
+    ID: {{book.id}}
+    Name: {{book.name}}
+    Category: {{book.category}}
+  </li>
+</ul> -->
+
+<div *ngIf="favBook | async as book">
+  {{book}}
+</div>

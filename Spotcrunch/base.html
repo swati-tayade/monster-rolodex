@@ -1,0 +1,138 @@
+<ion-view view-title="Menu">
+
+  <ion-nav-buttons side="right">
+    <!-- <button ng-click="showCategoryInput()" class="button button-small" style="color:#ee298b ">Add Category</button> -->
+    <!-- <button class="button  button-small" ng-click="addCategory(category_name)"
+      style="background-color: #ee298b;color: white">
+      ADD CATEGORY
+    </button> -->
+
+    <!-- <div ng-if="categoryBox" class="item item-input-inset">
+      <label class="item-input-wrapper">
+        <input id="categoryName" type="text" ng-model="item.categoryName" placeholder="Category Name">
+      </label>
+      <button ng-disabled="!item.categoryName" style="color:#ee298b " class="button button-small submitBtn"
+        ng-click="addCustomCategory(item.categoryName)">
+        Add
+      </button>
+    </div> -->
+  </ion-nav-buttons>
+
+  <div class=" bar bar-subheader scrollmenu">
+    <a ng-class="{selectedCat: cat === selectedCat}" ng-repeat="cat in categoryList"
+      ng-click="changeTab(cat)">{{cat.product_category_name}}</a>
+
+  </div>
+  <ion-content ng-click="closeOutsideClick($event)" class="has-tabs-top" style="background: #eee;">
+    <div class="row" ng-if="menuItemList.length==0">
+      <div class="col col-10"></div>
+      <div class="col col-70">
+        <button ng-if="category_name !== 'Specials' && category_name !== 'Add Category'" class="button button-block"
+          ng-click="addMenuItem()" style="margin-top:50% ;background-color: #ee298b;color: white">
+          ADD MENU ITEMS
+        </button>
+
+        <!-- <button ng-if=" category_name == 'Add Category'" class="button button-block"
+          ng-click="addCategory(category_name)" style="margin-top:50% ;background-color: #ee298b;color: white">
+          ADD CATEGORY
+        </button> -->
+
+      </div>
+      <div class="col col-20">
+        <!-- <button ng-if="categoryBox" class="button button-small submitBtn" ng-click="changeTab(cat)"">Back
+        </button> -->
+      </div>
+    </div>
+
+    <div ng-if=" !menuItemList.length==0">
+      <div class="card" ng-repeat="item in menuItemList | orderBy : 'name'">
+
+        <div class="row">
+          <div class="col col-50 pull-left" ng-click="editItem(item)">
+            <div class="col" style="padding-left: 0px">
+              {{item.product_name}}
+            </div>
+            <ion-thumbnail ng-hide="!item.product_images[0].image_name">
+              <img style="width: 50px;height: 50px;" src="{{productImgBaseUrl}}{{item.product_images[0].image_name}}">
+            </ion-thumbnail>
+            <div class="col" style="padding-left: 0px">
+              <p style="color: #ee298b;">{{currencyData.currency_symbol}} {{item.product_sizes[0].price}}</p>
+            </div>
+
+          </div>
+          <div class="col col-50" style="float: right;display: flex;align-items: center">
+            <div class="row">
+              <div class="col col-50" style="text-align: center">
+                <i ng-class="item.is_chief_favourite?'icon ion-ios-heart':'icon ion-ios-heart-outline'" style="color: #ee298b;
+               font-weight: bold; font-size: 24px; " ng-click="addToSpecial(item)"></i>
+                <p>Specials</p>
+              </div>
+              <div class="col col-50" style="text-align: center">
+                <div ng-if="item.toggle" class="action">
+                  <div class="item" ng-click="editItem(item)">Edit</div>
+                  <div class="item" ng-click="deleteItem(item)">Delete</div>
+                </div>
+                <div tappable style="display: block;" ng-click="openAction($event,item)"
+                  class="icon ion-android-more-vertical action_dots"></div>
+                <i ng-class="item.available?'icon ion-ios-star':'icon ion-ios-star-outline'" style="color: #ee298b;
+                  font-weight: bold; font-size: 24px; " ng-click="addToAvailable(item)"></i>
+                <p> Today</p>
+
+                <!-- <label class="toggle" style="zoom:0.8">
+                  <input type="checkbox" ng-model="item.available" ng-change="addToAvailable(item)" />
+                  <div class="track">
+                    <div class="handle"></div>
+                  </div>
+                </label> -->
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="row">
+        <div class="col col-20"></div>
+        <div class="col col-60">
+          <button ng-if="category_name !== 'Specials' && category_name !== 'Add Category'" class="button button-block"
+            ng-click="addMenuItem()" style="margin-top:50% ;background-color: #ee298b;color: white">
+            ADD MENU ITEMS
+          </button>
+
+          <!-- <button ng-if=" category_name == 'Add Category'" class="button button-block"
+            ng-click="addCategory(category_name)" style="margin-top:50% ;background-color: #ee298b;color: white">
+            ADD CATEGORY
+          </button> -->
+
+          <!-- <label ng-if="category_name ==='Add Category'" input-label" style="color:#ee298b "
+            ng-click="showCategoryInput()">Add Category</label>
+          <div ng-if="categoryBox" class="item item-input-inset">
+            <label class="item-input-wrapper">
+              <input id="categoryName" type="text" ng-model="item.categoryName" placeholder="Category Name">
+            </label>
+            <button ng-disabled="!item.categoryName" class="button button-small submitBtn"
+              ng-click="addCustomCategory(item.categoryName)">
+              Add
+            </button>
+          </div> -->
+
+
+        </div>
+        <div class="col col-20"></div>
+      </div>
+    </div>
+  </ion-content>
+  <ion-footer-bar style="padding: 0px">
+    <div class="tabs tabs-icon-only">
+      <a class="tab-item-bottom" ng-click="gotoCompletedOrder()">
+        <i class="icon file_for_icon"></i>
+      </a>
+      <a class="tab-item-bottom" ng-click="gotoMenulist()">
+        <i class="icon logo_icon"></i>
+      </a>
+      <a class="tab-item-bottom" ng-click="gotoProfile()">
+        <i class="icon user_icon"></i>
+      </a>
+    </div>
+  </ion-footer-bar>
+</ion-view>

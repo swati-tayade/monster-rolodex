@@ -1,0 +1,7 @@
+Todays Workdone:
+
+
+- Checking all API locally & on staging.
+- Adding 'cooking_videos/getVideos' API for guest user.
+- Push the changes on dev & stg. And again check for all APIs.
+- checking all APIs on production, getting error for menu's API, working on that.
