@@ -129,6 +129,16 @@ export class Publicroom extends Component {
       })
     }
 
+    this.connection.onPeerStateChanged = (state) => {
+      if (state.iceConnectionState.search(/closed|failed/gi) !== -1) {
+        this.connection.onstreamended({
+          type: 'remote',
+          userid: state.userid,
+          extra: state.extra
+        });
+      }
+    };
+
     this.connection.onleave = function (event) {
       let remoteUserId = event.userid
       let remoteUserFullName = event.extra.fullName
@@ -388,8 +398,8 @@ export class Publicroom extends Component {
       localstream.stop()
     })
     this.connection.captureUserMedia((_stream) => {
-      this.connection.attachStreams = [_stream]
-      this.connection.onstream(_stream)
+      // this.connection.attachStreams = [_stream]
+      // this.connection.onstream(_stream)
     }, defaultsOpts)
   }
 
@@ -399,12 +409,12 @@ export class Publicroom extends Component {
     //   local: true,
     // })
 
-    let localVideo = document.getElementById(localStreamId)
+    let localVideo = document.getElementById(this.state.localStreamId)
 
     console.log(
       'switchCamera -->',
       localVideo,
-      localStreamId,
+      this.state.localStreamId,
       localVideo.srcObject
     )
     if (localVideo == null) return
@@ -413,6 +423,7 @@ export class Publicroom extends Component {
     this.connection.attachStreams.forEach((localStream) => {
       localStream.stop()
     })
+    this.connection.removeStream(this.state.localStreamId)
     localVideo.id = 'local-video'
     this.capture(localVideo, this.connection.mediaConstraints, isFrontView)
     this.setState({ isFrontViewCamera: !isFrontView })
